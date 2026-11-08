@@ -1060,6 +1060,27 @@
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       window.scrollTo(0, 0);
+      if (id === 'preview') updatePreview();
+    }
+
+    function updatePreview() {
+      const art = document.getElementById('finalArt');
+      if (!art) return;
+      // Uploaded file
+      if (window.uploadedFile && window.uploadedFile.path) {
+        art.style.background = 'none';
+        art.innerHTML = `<img src="${window.uploadedFile.path}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="Your design" />`;
+        return;
+      }
+      // Grok image (if set)
+      if (window.grokImageUrl) {
+        art.style.background = 'none';
+        art.innerHTML = `<img src="${window.grokImageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="Grok design" />`;
+        return;
+      }
+      // Fallback
+      art.innerHTML = 'YOUR DESIGN';
+      art.style.background = 'linear-gradient(145deg, #c41e3a, #8b0000 45%, #111)';
     }
 
     function selectSize(el) {
@@ -1110,6 +1131,7 @@
         chatHistory.push({ role: 'assistant', content: data.reply || '' });
 
         if (data.imageUrl) {
+          window.grokImageUrl = data.imageUrl;
           const art = document.getElementById('grok-art');
           art.style.background = 'none';
           art.innerHTML = `<img src="${data.imageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
@@ -1143,10 +1165,13 @@
     async function simulateUpload() {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.pdf,.eps,.ai,.psd,.jpg,.jpeg,.png';
+      input.accept = '.pdf,.eps,.ai,.psd,.jpg,.jpeg,.png,image/*';
       input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
+        const zone = document.querySelector('.upload-zone');
+        const original = zone.innerHTML;
+        zone.innerHTML = '<div style="padding:40px;color:var(--muted);">Uploading...</div>';
         const form = new FormData();
         form.append('artwork', file);
         try {
@@ -1154,14 +1179,18 @@
           const data = await res.json();
           if (data.filename) {
             window.uploadedFile = data;
-            document.querySelector('.upload-zone').style.display = 'none';
+            zone.style.display = 'none';
             document.getElementById('upload-success').style.display = 'block';
             document.getElementById('filename').textContent = data.originalName;
             document.getElementById('uploadContinue').style.opacity = '1';
             document.getElementById('uploadContinue').style.pointerEvents = 'auto';
+          } else {
+            zone.innerHTML = original;
+            alert(data.error || 'Upload failed');
           }
         } catch (e) {
-          alert('Upload failed. Try again.');
+          zone.innerHTML = original;
+          alert('Upload failed. Try a JPG or PNG.');
         }
       };
       input.click();
