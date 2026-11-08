@@ -46,6 +46,7 @@ def health():
 def design():
     data = request.json or {}
     prompt = data.get('prompt', '')
+    logo_path = data.get('logoPath')
     if not prompt:
         return jsonify({'error': 'Prompt required'}), 400
 
@@ -79,7 +80,7 @@ def design():
                 headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                 json={
                     'model': 'grok-imagine-image',
-                    'prompt': f'Circular drumhead graphic design, high contrast, bold, print-ready, centered: {prompt}',
+                    'prompt': f'Circular drumhead graphic design incorporating the uploaded band logo, high contrast, bold, print-ready, centered. Logo path: {logo_path}. Additions: {prompt}' if logo_path else f'Circular drumhead graphic design, high contrast, bold, print-ready, centered: {prompt}',
                     'n': 1
                 },
                 timeout=60
