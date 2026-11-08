@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 MaxHeads Order App - Python Backend
@@ -58,7 +59,7 @@ def design():
             'https://api.x.ai/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             json={
-                'model': 'grok-2-latest',
+                'model': 'grok-4.3',
                 'messages': [
                     {'role': 'system', 'content': 'You are a design assistant for MaxHeads custom kick drum heads. Suggest bold, high-contrast rock/metal artwork suitable for circular drumhead printing. Keep responses short.'},
                     {'role': 'user', 'content': prompt}
@@ -79,8 +80,7 @@ def design():
                 json={
                     'model': 'grok-imagine-image',
                     'prompt': f'Circular drumhead graphic design, high contrast, bold, print-ready, centered: {prompt}',
-                    'n': 1,
-                    'size': '1024x1024'
+                    'n': 1
                 },
                 timeout=60
             )
