@@ -568,6 +568,7 @@
     }
 
     .final-drum {
+      overflow: hidden;
       width: 85%;
       max-width: 320px;
       aspect-ratio: 1;
@@ -795,6 +796,7 @@
     <div class="actions">
       <button class="btn btn-primary" onclick="go('size')">START YOUR HEAD →</button>
       <p class="sub-text">Custom Kick Drum Heads<br>Printed on Remo Ambassador • Made in the USA</p>
+      <p style="margin-top:18px;"><a href="https://instagram.com/maxheads" target="_blank" style="color:var(--muted);font-size:13px;letter-spacing:1px;text-decoration:none;">SEE RECENT HEADS →</a></p>
     </div>
   </div>
 
@@ -934,13 +936,14 @@
     <div class="final-preview">
       <div class="final-drum">
         <div class="art" id="finalArt">NIGHTLINE</div>
-        <div class="port" style="position:absolute;width:16%;height:16%;border-radius:50%;background:#0a0a0a;border:3px solid #222;bottom:11%;left:50%;transform:translateX(-50%);"></div>
+        <div class="port" id="previewPort" style="position:absolute;width:16%;height:16%;border-radius:50%;background:#0a0a0a;border:3px solid #222;bottom:11%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;"></div>
       </div>
 
       <div class="tweak-row">
-        <button class="tweak-btn">SCALE</button>
-        <button class="tweak-btn">MOVE</button>
-        <button class="tweak-btn">ROTATE</button>
+        <button class="tweak-btn" onclick="adjustScale(-0.1)">−</button>
+        <button class="tweak-btn" onclick="adjustScale(0.1)">SCALE +</button>
+        <button class="tweak-btn" onclick="adjustRotate(-15)">↺</button>
+        <button class="tweak-btn" onclick="adjustRotate(15)">ROTATE ↻</button>
       </div>
     </div>
 
@@ -1255,6 +1258,89 @@
       }
     }
 
+
+    let previewScale = 1;
+    let previewRotate = 0;
+
+    function adjustScale(delta) {
+      previewScale = Math.max(0.5, Math.min(1.8, previewScale + delta));
+      applyPreviewTransform();
+    }
+
+    function adjustRotate(delta) {
+      previewRotate = (previewRotate + delta) % 360;
+      applyPreviewTransform();
+    }
+
+    function applyPreviewTransform() {
+      const art = document.getElementById('finalArt');
+      if (!art) return;
+      art.style.transform = `scale(${previewScale}) rotate(${previewRotate}deg)`;
+      art.style.transition = 'transform 0.15s ease';
+    }
+
+    function updatePreview() {
+      const art = document.getElementById('finalArt');
+      if (!art) return;
+      previewScale = 1;
+      previewRotate = 0;
+      art.style.transform = '';
+      if (window.uploadedFile && window.uploadedFile.path) {
+        art.style.background = 'none';
+        art.innerHTML = `<img src="${window.uploadedFile.path}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="Your design" />`;
+        return;
+      }
+      if (window.grokImageUrl) {
+        art.style.background = 'none';
+        art.innerHTML = `<img src="${window.grokImageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="Grok design" />`;
+        return;
+      }
+      art.innerHTML = 'YOUR DESIGN';
+      art.style.background = 'linear-gradient(145deg, #c41e3a, #8b0000 45%, #111)';
+    }
+
+    (function() {
+      const port = document.getElementById('previewPort');
+      if (!port) return;
+      let dragging = false;
+      let startX, startY, startLeft, startBottom;
+
+      function getPos(e) {
+        const t = e.touches ? e.touches[0] : e;
+        return { x: t.clientX, y: t.clientY };
+      }
+
+      port.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        port.style.cursor = 'grabbing';
+        const r = port.getBoundingClientRect();
+        const drum = port.parentElement.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = ((r.left + r.width/2) - drum.left) / drum.width * 100;
+        startBottom = (drum.bottom - (r.top + r.height/2)) / drum.height * 100;
+        port.setPointerCapture(e.pointerId);
+      });
+
+      port.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const drum = port.parentElement.getBoundingClientRect();
+        const dx = (e.clientX - startX) / drum.width * 100;
+        const dy = (startY - e.clientY) / drum.height * 100;
+        let left = startLeft + dx;
+        let bottom = startBottom + dy;
+        left = Math.max(10, Math.min(90, left));
+        bottom = Math.max(8, Math.min(85, bottom));
+        port.style.left = left + '%';
+        port.style.bottom = bottom + '%';
+        port.style.transform = 'translate(-50%, 50%)';
+      });
+
+      port.addEventListener('pointerup', () => {
+        dragging = false;
+        port.style.cursor = 'grab';
+      });
+    })();
 </script>
 </body>
 </html>
