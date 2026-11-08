@@ -237,7 +237,28 @@
       box-shadow: 0 0 12px rgba(225,6,0,0.25);
       transition: transform 0.15s;
     }
-    .gallery-item:active {
+    
+    .ig-btn {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 22px;
+      background: transparent;
+      border: 2px solid var(--red);
+      color: var(--red);
+      font-family: 'Oswald', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .ig-btn:active {
+      background: var(--red);
+      color: white;
+    }
+.gallery-item:active {
       transform: scale(0.95);
     }
 .sub-text {
@@ -822,7 +843,7 @@
         <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#555,#222);"></a>
         <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#8b0000,#333);"></a>
       </div>
-      <p style="margin-top:10px;"><a href="https://instagram.com/maxheads" target="_blank" style="color:var(--muted);font-size:12px;letter-spacing:1px;text-decoration:none;">CHECK OUT OUR WORK →</a></p>
+      <a href="https://instagram.com/maxheads" target="_blank" class="ig-btn">CHECK OUT OUR WORK →</a>
     </div>
   </div>
 
