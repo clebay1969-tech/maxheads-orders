@@ -220,7 +220,27 @@
       margin-top: 40px;
     }
 
-    .sub-text {
+    
+    .gallery-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 22px;
+      padding: 0 10px;
+    }
+    .gallery-item {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 3px solid #333;
+      display: block;
+      box-shadow: 0 0 12px rgba(225,6,0,0.25);
+      transition: transform 0.15s;
+    }
+    .gallery-item:active {
+      transform: scale(0.95);
+    }
+.sub-text {
       font-size: 12px;
       color: var(--muted);
       text-align: center;
@@ -796,7 +816,13 @@
     <div class="actions">
       <button class="btn btn-primary" onclick="go('size')">START YOUR HEAD →</button>
       <p class="sub-text">Custom Kick Drum Heads<br>Printed on Remo Ambassador • Made in the USA</p>
-      <p style="margin-top:18px;"><a href="https://instagram.com/maxheads" target="_blank" style="color:var(--muted);font-size:13px;letter-spacing:1px;text-decoration:none;">SEE RECENT HEADS →</a></p>
+      <div class="gallery-row">
+        <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#c41e3a,#8b0000);"></a>
+        <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#333,#111);"></a>
+        <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#555,#222);"></a>
+        <a href="https://instagram.com/maxheads" target="_blank" class="gallery-item" style="background:linear-gradient(145deg,#8b0000,#333);"></a>
+      </div>
+      <p style="margin-top:10px;"><a href="https://instagram.com/maxheads" target="_blank" style="color:var(--muted);font-size:12px;letter-spacing:1px;text-decoration:none;">SEE MORE ON INSTAGRAM →</a></p>
     </div>
   </div>
 
