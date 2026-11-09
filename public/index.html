@@ -897,6 +897,11 @@
     <h2>Two ways to get your design on the head</h2>
 
     <div class="path-cards">
+      <div class="path-card" onclick="go('logo-plus-grok')">
+        <h3>LOGO + GROK</h3>
+        <p>Upload your logo, then tell Grok what to add around it.</p>
+        <span class="badge">HYBRID</span>
+      </div>
       <div class="path-card" onclick="go('grok-design')">
         <div class="badge">NEW</div>
         <h3>DESIGN WITH GROK</h3>
@@ -909,7 +914,34 @@
     </div>
   </div>
 
-  <!-- ========== GROK DESIGN ========== -->
+  
+  <!-- ========== LOGO + GROK ========== -->
+  <div id="logo-plus-grok" class="screen">
+    <button class="back" onclick="go('path')">←</button>
+    <h1>LOGO + GROK</h1>
+    <p class="sub">Upload your band logo, then describe what you want added.</p>
+    <div class="upload-zone" onclick="uploadLogo()" style="margin:20px 0;">
+      <div class="icon">↑</div>
+      <h3>UPLOAD LOGO</h3>
+      <p>PNG or JPG with transparent background works best</p>
+    </div>
+    <div id="logo-preview" style="display:none;text-align:center;margin:16px 0;">
+      <img id="logo-img" style="max-width:180px;border-radius:8px;" />
+      <p style="color:var(--muted);font-size:13px;margin-top:8px;">Logo ready</p>
+    </div>
+    <div id="logo-chat" style="display:none;">
+      <div id="logo-chat-msgs" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input id="logoChatInput" placeholder="Add flames, make it darker..." style="flex:1;padding:12px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;" />
+        <button class="btn btn-primary" onclick="sendLogoChat()" style="width:auto;padding:0 18px;">SEND</button>
+      </div>
+    </div>
+    <div class="bottom-bar">
+      <button class="btn btn-primary" id="logoContinue" onclick="go('preview')" style="opacity:0.4;pointer-events:none;">USE THIS DESIGN →</button>
+    </div>
+  </div>
+
+<!-- ========== GROK DESIGN ========== -->
   <div id="grok-design" class="screen">
     <button class="back" onclick="go('path')">←</button>
     <div class="progress"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
@@ -1033,7 +1065,7 @@
     </div>
 
     <div class="bottom-bar">
-      <button class="btn btn-primary" onclick="go('review')">CONTINUE →</button>
+      <button class="btn btn-primary" onclick="validateInfo()">CONTINUE →</button>
     </div>
   </div>
 
@@ -1388,6 +1420,76 @@
         port.style.cursor = 'grab';
       });
     })();
+
+    async function uploadLogo() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('artwork', file);
+        const res = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.filename) {
+          window.uploadedLogo = data;
+          document.getElementById('logo-img').src = data.path;
+          document.getElementById('logo-preview').style.display = 'block';
+          document.querySelector('#logo-plus-grok .upload-zone').style.display = 'none';
+          document.getElementById('logo-chat').style.display = 'block';
+        }
+      };
+      input.click();
+    }
+
+    async function sendLogoChat() {
+      const input = document.getElementById('logoChatInput');
+      const text = input.value.trim();
+      if (!text || !window.uploadedLogo) return;
+      const msgs = document.getElementById('logo-chat-msgs');
+      msgs.innerHTML += `<div class="msg user">${text}</div>`;
+      input.value = '';
+      const grokMsg = document.createElement('div');
+      grokMsg.className = 'msg grok';
+      grokMsg.textContent = 'Working on it...';
+      msgs.appendChild(grokMsg);
+      try {
+        const res = await fetch('/api/design', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path })
+        });
+        const data = await res.json();
+        grokMsg.textContent = data.reply || 'Here is a direction.';
+        if (data.imageUrl) {
+          window.grokImageUrl = data.imageUrl;
+          document.getElementById('logoContinue').style.opacity = '1';
+          document.getElementById('logoContinue').style.pointerEvents = 'auto';
+        }
+      } catch (e) {
+        grokMsg.textContent = 'Hit a snag. Try again.';
+      }
+    }
+
+    function validateInfo() {
+      const inputs = document.querySelectorAll('#info input');
+      const required = [0, 1, 2, 3, 4]; // name, email, phone, address, city
+      let ok = true;
+      inputs.forEach((inp, i) => {
+        if (required.includes(i) && !inp.value.trim()) {
+          inp.style.borderColor = '#e10600';
+          ok = false;
+        } else {
+          inp.style.borderColor = '';
+        }
+      });
+      if (!ok) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+      go('review');
+    }
 </script>
 </body>
 </html>
