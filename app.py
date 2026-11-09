@@ -80,7 +80,7 @@ def design():
                 headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                 json={
                     'model': 'grok-imagine-image',
-                    'prompt': f'Circular drumhead graphic design incorporating the uploaded band logo, high contrast, bold, print-ready, centered. Logo path: {logo_path}. Additions: {prompt}' if logo_path else f'Circular drumhead graphic design, high contrast, bold, print-ready, centered: {prompt}',
+                    'prompt': f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}',
                     'n': 1
                 },
                 timeout=60
