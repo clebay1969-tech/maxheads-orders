@@ -1214,13 +1214,14 @@
         const res = await fetch('/api/design', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, previousMessages: chatHistory })
+          body: JSON.stringify({ prompt: text, previousDesign: window.lastDesign || '' })
         });
         const data = await res.json();
         grokMsg.textContent = data.reply || 'Here is a direction.';
         chatHistory.push({ role: 'user', content: text });
         chatHistory.push({ role: 'assistant', content: data.reply || '' });
 
+        if (data.reply) window.lastDesign = data.reply;
         if (data.imageUrl) {
           window.grokImageUrl = data.imageUrl;
           const art = document.getElementById('grok-art');
@@ -1473,6 +1474,7 @@
         });
         const data = await res.json();
         grokMsg.textContent = data.reply || 'Here is a direction.';
+        if (data.reply) window.lastDesign = data.reply;
         if (data.imageUrl) {
           window.grokImageUrl = data.imageUrl;
           document.getElementById('logoContinue').style.opacity = '1';
