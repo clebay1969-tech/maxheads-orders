@@ -117,10 +117,46 @@ def upload():
 def serve_upload(filename):
     return send_from_directory(UPLOADS, filename)
 
+def generate_order_pdf(order):
+    """Generate a simple high-res PDF proof of the order."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+        import io
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
+        w, h = letter
+        c.setFont('Helvetica-Bold', 18)
+        c.drawString(1*inch, h - 1*inch, f"MaxHeads Order — {order['id']}")
+        c.setFont('Helvetica', 11)
+        y = h - 1.5*inch
+        lines = [
+            f"Size: {order.get('size', '—')}",
+            f"Port: {order.get('port', '—')}",
+            f"Grommet: {order.get('grommet', '—')}",
+            f"Design: {order.get('designType', '—')}",
+            f"Customer: {order['customer'].get('name', '—')}",
+            f"Email: {order['customer'].get('email', '—')}",
+            f"Total: ${order.get('total', '—')}",
+            "",
+            "Artwork proof attached or available via order system.",
+            "Final proof will be sent before printing."
+        ]
+        for line in lines:
+            c.drawString(1*inch, y, line)
+            y -= 16
+        c.save()
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        print(f'PDF gen failed: {e}')
+        return None
+
 def send_order_email(order):
-    """Send order notification to heads@maxheads.com"""
+    """Send order notification with PDF attachment."""
     to_email = os.getenv('ORDER_EMAIL', 'heads@maxheads.com')
-    smtp_host = os.getenv('SMTP_HOST')
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
     smtp_user = os.getenv('SMTP_USER')
     smtp_pass = os.getenv('SMTP_PASS')
     smtp_port = int(os.getenv('SMTP_PORT', 587))
@@ -147,18 +183,25 @@ Design: {order.get('designType', '—')}
 Shipping: {order['shipping']}
 Total: ${order.get('total', '—')}
 
-Artwork: {order.get('artworkPath') or 'Grok-generated design'}
+High-res proof PDF is attached.
 
 — MaxHeads Order System
 """
 
-    if smtp_host and smtp_user and smtp_pass:
+    if smtp_user and smtp_pass:
         try:
             msg = MIMEMultipart()
             msg['From'] = smtp_user
             msg['To'] = to_email
             msg['Subject'] = subject
             msg.attach(MIMEText(body, 'plain'))
+
+            pdf_data = generate_order_pdf(order)
+            if pdf_data:
+                from email.mime.application import MIMEApplication
+                part = MIMEApplication(pdf_data, _subtype='pdf')
+                part.add_header('Content-Disposition', 'attachment', filename=f"{order['id']}-proof.pdf")
+                msg.attach(part)
 
             with smtplib.SMTP(smtp_host, smtp_port) as server:
                 server.starttls()
@@ -170,11 +213,9 @@ Artwork: {order.get('artworkPath') or 'Grok-generated design'}
             print(f'SMTP email failed: {e}')
             return False
     else:
-        # Log only until SMTP is configured
         print(f'=== ORDER EMAIL (no SMTP configured) ===')
         print(f'To: {to_email}')
         print(body)
-        print('========================================')
         return False
 
 @app.route('/api/orders', methods=['POST'])
