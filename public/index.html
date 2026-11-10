@@ -1024,7 +1024,7 @@
     <div class="final-preview">
       <div class="final-drum">
         <div class="art" id="finalArt">NIGHTLINE</div>
-        <img id="previewPort" src="4in-black.png" style="position:absolute;width:18%;height:auto;aspect-ratio:1;object-fit:contain;bottom:11%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;" />
+        <div id="previewPort" style="position:absolute;width:18%;aspect-ratio:1;border-radius:50%;background:#0a0a0a;border:3px solid #333;bottom:11%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;display:none;"></div>
       </div>
 
       <div class="tweak-row">
@@ -1506,24 +1506,19 @@
       const sizeEl = document.querySelector('.size-btn.selected');
       const sections = document.querySelectorAll('.options-section');
       const portEl = sections[0]?.querySelector('.chip.selected');
-      const colorEl = sections[1]?.querySelector('.chip.selected');
-      const portImg = document.getElementById('previewPort');
-      if (!portImg) return;
+      const port = document.getElementById('previewPort');
+      if (!port) return;
 
       const size = parseInt(sizeEl?.textContent) || 20;
       const portSize = parseInt(portEl?.textContent) || 0;
-      let color = (colorEl?.textContent || 'black').toLowerCase().trim();
-      if (color === 'none' || !['black','white','chrome'].includes(color)) color = 'black';
 
       if (portSize === 0) {
-        portImg.style.display = 'none';
+        port.style.display = 'none';
         return;
       }
-      portImg.style.display = 'block';
-      portImg.src = `${portSize}in-${color}.png`;
-      // Scale: port diameter / head diameter
+      port.style.display = 'block';
       const pct = (portSize / size) * 100;
-      portImg.style.width = pct + '%';
+      port.style.width = pct + '%';
     }
 </script>
 </body>
