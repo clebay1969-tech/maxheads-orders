@@ -1512,7 +1512,8 @@
 
       const size = parseInt(sizeEl?.textContent) || 20;
       const portSize = parseInt(portEl?.textContent) || 0;
-      const color = (colorEl?.textContent || 'black').toLowerCase();
+      let color = (colorEl?.textContent || 'black').toLowerCase().trim();
+      if (color === 'none' || !['black','white','chrome'].includes(color)) color = 'black';
 
       if (portSize === 0) {
         portImg.style.display = 'none';
