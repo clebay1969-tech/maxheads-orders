@@ -1214,7 +1214,7 @@
         const res = await fetch('/api/design', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, previousDesign: window.lastDesign || '' })
+          body: JSON.stringify({ prompt: text, previousImageUrl: window.grokImageUrl || '' })
         });
         const data = await res.json();
         grokMsg.textContent = data.reply || 'Here is a direction.';
