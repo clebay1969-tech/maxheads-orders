@@ -73,19 +73,31 @@ def design():
         chat_res.raise_for_status()
         reply = chat_res.json()['choices'][0]['message']['content']
 
-        # Image generation
+        # Image generation or editing
         image_url = None
+        previous_image = data.get('previousImageUrl')
         try:
-            img_res = requests.post(
-                'https://api.x.ai/v1/images/generations',
-                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                json={
-                    'model': 'grok-imagine-image',
-                    'prompt': (f'Refine this existing drumhead design: {previous}. Make this change: {prompt}. Keep the same overall composition and style.' if previous else (f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}')),
-                    'n': 1
-                },
-                timeout=60
-            )
+            if previous_image:
+                # Edit the existing image
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/edits',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'model': 'grok-imagine-image',
+                        'prompt': f'Keep the same design and composition. Make only this change: {prompt}',
+                        'image': {'url': previous_image, 'type': 'image_url'}
+                    },
+                    timeout=60
+                )
+            else:
+                # Generate new
+                img_prompt = f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}'
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/generations',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1},
+                    timeout=60
+                )
             if img_res.ok:
                 img_data = img_res.json()
                 image_url = img_data.get('data', [{}])[0].get('url')
