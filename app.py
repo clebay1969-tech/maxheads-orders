@@ -47,6 +47,7 @@ def design():
     data = request.json or {}
     prompt = data.get('prompt', '')
     logo_path = data.get('logoPath')
+    previous = data.get('previousDesign', '')
     if not prompt:
         return jsonify({'error': 'Prompt required'}), 400
 
@@ -80,7 +81,7 @@ def design():
                 headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                 json={
                     'model': 'grok-imagine-image',
-                    'prompt': f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}',
+                    'prompt': (f'Refine this existing drumhead design: {previous}. Make this change: {prompt}. Keep the same overall composition and style.' if previous else (f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}')),
                     'n': 1
                 },
                 timeout=60
