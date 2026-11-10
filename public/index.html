@@ -1504,8 +1504,9 @@
 
     function updatePreviewPort() {
       const sizeEl = document.querySelector('.size-btn.selected');
-      const portEl = document.querySelector('.options-section:nth-of-type(1) .chip.selected');
-      const colorEl = document.querySelector('.options-section:nth-of-type(2) .chip.selected');
+      const sections = document.querySelectorAll('.options-section');
+      const portEl = sections[0]?.querySelector('.chip.selected');
+      const colorEl = sections[1]?.querySelector('.chip.selected');
       const portImg = document.getElementById('previewPort');
       if (!portImg) return;
 
