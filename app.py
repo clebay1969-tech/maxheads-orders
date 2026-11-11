@@ -77,21 +77,28 @@ def design():
         image_url = None
         previous_image = data.get('previousImageUrl')
         try:
-            if previous_image:
-                # Edit the existing image
+            base_image = previous_image
+            if not base_image and logo_path:
+                # Convert local logo path to full URL for editing
+                base_image = request.host_url.rstrip('/') + logo_path
+            if base_image:
+                # Edit the existing image — keep prompt short so it doesn't render as text
+                edit_prompt = prompt.strip()
+                if logo_path and not previous_image:
+                    edit_prompt = f'Add to this logo: {prompt}'
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/edits',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                     json={
                         'model': 'grok-imagine-image',
-                        'prompt': f'Keep the same design and composition. Make only this change: {prompt}',
-                        'image': {'url': previous_image, 'type': 'image_url'}
+                        'prompt': edit_prompt,
+                        'image': {'url': base_image, 'type': 'image_url'}
                     },
                     timeout=60
                 )
             else:
-                # Generate new
-                img_prompt = f'Professional circular kick drum head graphic, high-end metal aesthetic, sharp details, bold typography, high contrast, print-ready, centered. Incorporate logo and add: {prompt}' if logo_path else f'Professional circular kick drum head graphic design, high-end metal/rock aesthetic, sharp details, bold typography, high contrast, print-ready, centered composition, premium quality, no childish elements: {prompt}'
+                # New design — minimal style guidance, no long instructions
+                img_prompt = f'Circular kick drum head graphic, bold high-contrast rock design, centered: {prompt}'
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
