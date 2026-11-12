@@ -848,7 +848,7 @@
     </div>
     <div class="actions">
       <button class="btn btn-primary" onclick="go('size')">START YOUR HEAD →</button>
-      <p class="sub-text">Custom Kick Drum Heads<br>Printed on Remo Ambassador • Made in the USA</p>
+      <p class="sub-text">MaxHeads.com<br>Downers Grove, IL<br><a href="mailto:orders@maxheads.com" style="color:var(--muted);text-decoration:none;">orders@maxheads.com</a></p>
       <a href="https://instagram.com/maxheads" target="_blank" class="ig-kit-btn">
         <img src="ig-kit.jpg" alt="See our work" />
       </a>
@@ -906,6 +906,10 @@
     <h2>Two ways to get your design on the head</h2>
 
     <div class="path-cards">
+      <div class="path-card" onclick="go('upload')">
+        <h3>UPLOAD YOUR ART</h3>
+        <p>Already have a logo or design? Drop the file and we’ll put it on the head.</p>
+      </div>
       <div class="path-card" onclick="go('logo-plus-grok')">
         <h3>LOGO + GROK</h3>
         <p>Upload your logo, then tell Grok what to add around it.</p>
@@ -915,10 +919,6 @@
         <div class="badge">NEW</div>
         <h3>DESIGN WITH GROK</h3>
         <p>Tell Grok what you want. It generates killer artwork you can tweak until it’s perfect.</p>
-      </div>
-      <div class="path-card" onclick="go('upload')">
-        <h3>UPLOAD YOUR ART</h3>
-        <p>Already have a logo or design? Drop the file and we’ll put it on the head.</p>
       </div>
     </div>
   </div>
@@ -1069,7 +1069,7 @@
       <input type="text" placeholder="Downers Grove, IL 60515" />
     </div>
     <div class="form-group">
-      <label>Band / Project Name (optional)</label>
+      <label>Band / Project Name <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
       <input type="text" placeholder="Makes the packing slip cooler" />
     </div>
 
@@ -1129,7 +1129,8 @@
 
     <div class="bottom-bar">
       <button class="btn btn-primary" id="payBtn" onclick="startCheckout()">PAY $140 →</button>
-      <p style="font-size:11px; color:#555; text-align:center; margin-top:12px;">Secured by PayPal</p>
+      <button class="btn" id="cashBtn" onclick="payWithCash()" style="display:none; margin-top:10px; background:#222; border:1px solid #444;">PAY WITH CASH AT PICKUP</button>
+      <p style="font-size:11px; color:#555; text-align:center; margin-top:12px;" id="payNote">Secured by PayPal</p>
     </div>
   </div>
 
@@ -1241,6 +1242,8 @@
 
     function togglePickup() {
       const pickup = document.getElementById('storePickup').checked;
+      const cashBtn = document.getElementById('cashBtn');
+      if (cashBtn) cashBtn.style.display = pickup ? 'block' : 'none';
       const shipRow = document.getElementById('shipping-row');
       const shipVal = document.getElementById('shipping-value');
       const total = document.getElementById('order-total');
@@ -1470,7 +1473,7 @@
         const res = await fetch('/api/design', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path })
+          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path, previousImageUrl: window.grokImageUrl || '' })
         });
         const data = await res.json();
         grokMsg.textContent = data.reply || 'Here is a direction.';
@@ -1521,6 +1524,40 @@
       port.style.display = 'block';
       const pct = (portSize / size) * 100;
       port.style.width = pct + '%';
+    }
+
+    async function payWithCash() {
+      const infoInputs = document.querySelectorAll('#info input');
+      const customer = {
+        name: infoInputs[0]?.value || '',
+        email: infoInputs[1]?.value || '',
+        phone: infoInputs[2]?.value || '',
+        address: infoInputs[3]?.value || '',
+        city: infoInputs[4]?.value || '',
+        band: infoInputs[5]?.value || ''
+      };
+      const payload = {
+        size: document.querySelector('.size-btn.selected')?.textContent || '20"',
+        port: document.querySelector('.options-section:nth-of-type(1) .chip.selected')?.textContent || 'None',
+        grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
+        designType: window.uploadedFile ? 'upload' : 'grok',
+        artworkPath: window.uploadedFile?.path || window.grokImageUrl || null,
+        customer,
+        shipping: 'pickup',
+        total: '115',
+        paymentMethod: 'cash'
+      };
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) go('confirm');
+        else alert('Could not submit. Try again.');
+      } catch (e) {
+        alert('Could not submit. Try again.');
+      }
     }
 </script>
 </body>
