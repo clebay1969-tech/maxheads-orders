@@ -226,33 +226,32 @@ ARTWORK
         return False
 
     try:
-            msg = MIMEMultipart()
-            msg['From'] = smtp_user
-            msg['To'] = to_email
-            msg['Subject'] = subject
-            msg.attach(MIMEText(body, 'plain'))
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
 
-            pdf_data = generate_order_pdf(order)
-            if pdf_data:
-                from email.mime.application import MIMEApplication
-                part = MIMEApplication(pdf_data, _subtype='pdf')
-                part.add_header('Content-Disposition', 'attachment', filename=f"{order['id']}-proof.pdf")
-                msg.attach(part)
+        pdf_data = generate_order_pdf(order)
+        if pdf_data:
+            from email.mime.application import MIMEApplication
+            part = MIMEApplication(pdf_data, _subtype='pdf')
+            part.add_header('Content-Disposition', 'attachment', filename=f"{order['id']}-proof.pdf")
+            msg.attach(part)
 
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.sendmail(smtp_user, to_email, msg.as_string())
-                print(f'Email sent to {to_email}')
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, to_email, msg.as_string())
+            print(f'Email sent to {to_email}')
 
-                # Customer confirmation
-                cust_email = c.get('email')
-                if cust_email:
-                    cust_msg = MIMEMultipart()
-                    cust_msg['From'] = smtp_user
-                    cust_msg['To'] = cust_email
-                    cust_msg['Subject'] = f"MaxHeads Order Received — {order['id']}"
-                    cust_body = f"""
+            cust_email = c.get('email')
+            if cust_email:
+                cust_msg = MIMEMultipart()
+                cust_msg['From'] = smtp_user
+                cust_msg['To'] = cust_email
+                cust_msg['Subject'] = f"MaxHeads Order Received — {order['id']}"
+                cust_body = f"""
 Hey {c.get('name', 'there')},
 
 We got your MaxHeads order.
@@ -267,14 +266,14 @@ Questions? Reply to this email or hit heads@maxheads.com.
 Rock on,
 MaxHeads
 """
-                    cust_msg.attach(MIMEText(cust_body, 'plain'))
-                    server.sendmail(smtp_user, cust_email, cust_msg.as_string())
-                    print(f'Confirmation sent to {cust_email}')
+                cust_msg.attach(MIMEText(cust_body, 'plain'))
+                server.sendmail(smtp_user, cust_email, cust_msg.as_string())
+                print(f'Confirmation sent to {cust_email}')
 
-            return True
-        except Exception as e:
-            print(f'SMTP email failed: {e}')
-            return False
+        return True
+    except Exception as e:
+        print(f'SMTP email failed: {e}')
+        return False
     
 
 @app.route('/api/orders', methods=['POST'])
