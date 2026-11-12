@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 MaxHeads Order App - Python Backend
@@ -236,7 +237,34 @@ ARTWORK
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
                 server.sendmail(smtp_user, to_email, msg.as_string())
-            print(f'Email sent to {to_email}')
+                print(f'Email sent to {to_email}')
+
+                # Customer confirmation
+                cust_email = c.get('email')
+                if cust_email:
+                    cust_msg = MIMEMultipart()
+                    cust_msg['From'] = smtp_user
+                    cust_msg['To'] = cust_email
+                    cust_msg['Subject'] = f"MaxHeads Order Received — {order['id']}"
+                    cust_body = f"""
+Hey {c.get('name', 'there')},
+
+We got your MaxHeads order.
+
+Order: {order['id']}
+{heads_text}
+Total: ${order.get('total', '—')}
+
+We'll send a proof before anything gets printed. 
+Questions? Reply to this email or hit heads@maxheads.com.
+
+Rock on,
+MaxHeads
+"""
+                    cust_msg.attach(MIMEText(cust_body, 'plain'))
+                    server.sendmail(smtp_user, cust_email, cust_msg.as_string())
+                    print(f'Confirmation sent to {cust_email}')
+
             return True
         except Exception as e:
             print(f'SMTP email failed: {e}')
