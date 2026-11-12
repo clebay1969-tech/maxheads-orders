@@ -219,8 +219,13 @@ ARTWORK
 — MaxHeads
 """
 
-    if smtp_user and smtp_pass:
-        try:
+    if not smtp_user or not smtp_pass:
+        print('=== ORDER EMAIL (no SMTP configured) ===')
+        print(f'To: {to_email}')
+        print(body)
+        return False
+
+    try:
             msg = MIMEMultipart()
             msg['From'] = smtp_user
             msg['To'] = to_email
@@ -234,7 +239,7 @@ ARTWORK
                 part.add_header('Content-Disposition', 'attachment', filename=f"{order['id']}-proof.pdf")
                 msg.attach(part)
 
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
                 server.sendmail(smtp_user, to_email, msg.as_string())
@@ -270,11 +275,7 @@ MaxHeads
         except Exception as e:
             print(f'SMTP email failed: {e}')
             return False
-    else:
-        print(f'=== ORDER EMAIL (no SMTP configured) ===')
-        print(f'To: {to_email}')
-        print(body)
-        return False
+    
 
 @app.route('/api/orders', methods=['POST'])
 def create_order():
