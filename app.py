@@ -191,7 +191,8 @@ def send_order_email(order):
         else:
             art_link = request.host_url.rstrip('/') + art_path
 
-    heads_text = chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(order.get('heads', [{}]))]) or '  1 head'
+    heads = order.get('heads') or [{}]
+    heads_text = chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(heads)]) or '  1 head'
     c = order.get('customer', {})
 
     body = f"""
@@ -299,7 +300,10 @@ def create_order():
     print(f'Size: {order["size"]} | Total: ${order["total"]}')
     print(f'Shipping: {order["shipping"]}')
     print(f'=================')
-    send_order_email(order)
+    try:
+        send_order_email(order)
+    except Exception as e:
+        print(f'Email error (order still created): {e}')
     return jsonify({'orderId': order['id'], 'order': order})
 
 @app.route('/api/paypal/create-order', methods=['POST'])
