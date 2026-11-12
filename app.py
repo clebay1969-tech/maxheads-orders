@@ -219,40 +219,38 @@ ARTWORK
 — MaxHeads
 """
 
-    if not smtp_user or not smtp_pass:
-        print('=== ORDER EMAIL (no SMTP configured) ===')
-        print(f'To: {to_email}')
+    resend_key = os.getenv('RESEND_API_KEY')
+    if not resend_key:
+        print('=== ORDER EMAIL (no Resend key) ===')
         print(body)
         return False
 
     try:
-        msg = MIMEMultipart()
-        msg['From'] = smtp_user
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+        # Shop email
+        requests.post(
+            'https://api.resend.com/emails',
+            headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'},
+            json={
+                'from': 'MaxHeads Orders <orders@maxheads.com>',
+                'to': [to_email],
+                'subject': subject,
+                'text': body
+            },
+            timeout=15
+        )
+        print(f'Email sent to {to_email}')
 
-        pdf_data = generate_order_pdf(order)
-        if pdf_data:
-            from email.mime.application import MIMEApplication
-            part = MIMEApplication(pdf_data, _subtype='pdf')
-            part.add_header('Content-Disposition', 'attachment', filename=f"{order['id']}-proof.pdf")
-            msg.attach(part)
-
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, to_email, msg.as_string())
-            print(f'Email sent to {to_email}')
-
-            cust_email = c.get('email')
-            if cust_email:
-                cust_msg = MIMEMultipart()
-                cust_msg['From'] = smtp_user
-                cust_msg['To'] = cust_email
-                cust_msg['Subject'] = f"MaxHeads Order Received — {order['id']}"
-                cust_body = f"""
-Hey {c.get('name', 'there')},
+        # Customer confirmation
+        cust_email = c.get('email')
+        if cust_email:
+            requests.post(
+                'https://api.resend.com/emails',
+                headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'},
+                json={
+                    'from': 'MaxHeads <orders@maxheads.com>',
+                    'to': [cust_email],
+                    'subject': f"MaxHeads Order Received — {order['id']}",
+                    'text': f"""Hey {c.get('name', 'there')},
 
 We got your MaxHeads order.
 
@@ -260,19 +258,19 @@ Order: {order['id']}
 {heads_text}
 Total: ${order.get('total', '—')}
 
-We'll send a proof before anything gets printed. 
+We'll send a proof before anything gets printed.
 Questions? Reply to this email or hit heads@maxheads.com.
 
 Rock on,
-MaxHeads
-"""
-                cust_msg.attach(MIMEText(cust_body, 'plain'))
-                server.sendmail(smtp_user, cust_email, cust_msg.as_string())
-                print(f'Confirmation sent to {cust_email}')
+MaxHeads"""
+                },
+                timeout=15
+            )
+            print(f'Confirmation sent to {cust_email}')
 
         return True
     except Exception as e:
-        print(f'SMTP email failed: {e}')
+        print(f'Resend email failed: {e}')
         return False
     
 
