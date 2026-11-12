@@ -98,7 +98,7 @@ def design():
                 )
             else:
                 # New design — minimal style guidance, no long instructions
-                img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. Do not include any text, words, or letters unless specifically requested. High contrast, bold, centered, print-ready.'
+                img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. If a band name or text is mentioned, include it in a bold, stylized font that fits the design. High contrast, centered, print-ready.'
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
