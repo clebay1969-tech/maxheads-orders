@@ -1139,7 +1139,7 @@
       document.getElementById(id).classList.add('active');
       window.scrollTo(0, 0);
       if (id === 'preview') { updatePreview(); updatePreviewPort(); }
-      if (id === 'review') renderHeadsSummary();
+      if (id === 'review') { renderHeadsSummary(); updateTotal(); }
     }
 
     function updatePreview() {
@@ -1231,19 +1231,23 @@
       const pickup = document.getElementById('storePickup').checked;
       const cashBtn = document.getElementById('cashBtn');
       if (cashBtn) cashBtn.style.display = pickup ? 'block' : 'none';
-      const shipRow = document.getElementById('shipping-row');
-      const shipVal = document.getElementById('shipping-value');
-      const total = document.getElementById('order-total');
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const pickup = document.getElementById('storePickup')?.checked;
+      const sections = document.querySelectorAll('.options-section');
+      const colorEl = sections[1]?.querySelector('.chip.selected');
+      const color = (colorEl?.textContent || 'None').trim();
+      const portCharge = (color !== 'None') ? 20 : 0;
+      const ship = pickup ? 0 : 25;
+      const total = 115 + portCharge + ship;
+      const totalEl = document.getElementById('order-total');
       const payBtn = document.getElementById('payBtn');
-      if (pickup) {
-        shipVal.textContent = 'Store Pick Up — FREE';
-        total.textContent = '$115';
-        payBtn.textContent = 'PAY $115 →';
-      } else {
-        shipVal.textContent = 'Ground — $25';
-        total.textContent = '$140';
-        payBtn.textContent = 'PAY $140 →';
-      }
+      const shipVal = document.getElementById('shipping-value');
+      if (shipVal) shipVal.textContent = pickup ? 'Store Pick Up — FREE' : 'Ground — $25';
+      if (totalEl) totalEl.textContent = '$' + total;
+      if (payBtn) payBtn.textContent = 'PAY $' + total + ' →';
     }
 
     async function simulateUpload() {
