@@ -83,7 +83,7 @@ def design():
                 base_image = request.host_url.rstrip('/') + logo_path
             if base_image:
                 # Edit the existing image — keep prompt short so it doesn't render as text
-                edit_prompt = prompt.strip()
+                edit_prompt = f'Edit the design: {prompt}. Do not add any text or words unless asked.'
                 if logo_path and not previous_image:
                     edit_prompt = f'Add to this logo: {prompt}'
                 img_res = requests.post(
@@ -98,7 +98,7 @@ def design():
                 )
             else:
                 # New design — minimal style guidance, no long instructions
-                img_prompt = f'Circular kick drum head graphic, bold high-contrast rock design, centered: {prompt}'
+                img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. Do not include any text, words, or letters unless specifically requested. High contrast, bold, centered, print-ready.'
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
