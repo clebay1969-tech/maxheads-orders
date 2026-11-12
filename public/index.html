@@ -1066,7 +1066,11 @@
     </div>
     <div class="form-group">
       <label>City / State / ZIP</label>
-      <input type="text" placeholder="Downers Grove, IL 60515" />
+      <div style="display:flex;gap:8px;">
+        <input type="text" placeholder="City" style="flex:2;" />
+        <input type="text" placeholder="ST" style="flex:1;max-width:60px;text-transform:uppercase;" />
+        <input type="text" placeholder="ZIP" style="flex:1.2;max-width:80px;" />
+      </div>
     </div>
     <div class="form-group">
       <label>Band / Project Name <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
@@ -1309,7 +1313,9 @@
         phone: infoInputs[2]?.value || '',
         address: infoInputs[3]?.value || '',
         city: infoInputs[4]?.value || '',
-        band: infoInputs[5]?.value || ''
+        state: infoInputs[5]?.value || '',
+        zip: infoInputs[6]?.value || '',
+        band: infoInputs[7]?.value || ''
       };
 
       const orderData = {
@@ -1490,7 +1496,7 @@
 
     function validateInfo() {
       const inputs = document.querySelectorAll('#info input');
-      const required = [0, 1, 2, 3, 4]; // name, email, phone, address, city
+      const required = [0, 1, 2, 3, 4, 5, 6]; // name, email, phone, address, city
       let ok = true;
       inputs.forEach((inp, i) => {
         if (required.includes(i) && !inp.value.trim()) {
@@ -1534,7 +1540,9 @@
         phone: infoInputs[2]?.value || '',
         address: infoInputs[3]?.value || '',
         city: infoInputs[4]?.value || '',
-        band: infoInputs[5]?.value || ''
+        state: infoInputs[5]?.value || '',
+        zip: infoInputs[6]?.value || '',
+        band: infoInputs[7]?.value || ''
       };
       const payload = {
         size: document.querySelector('.size-btn.selected')?.textContent || '20"',
