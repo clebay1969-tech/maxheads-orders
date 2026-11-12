@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 MaxHeads Order App - Python Backend
@@ -182,28 +181,40 @@ def send_order_email(order):
     smtp_port = int(os.getenv('SMTP_PORT', 587))
 
     subject = f"New MaxHeads Order — {order['id']}"
-    body = f"""
-New custom kick head order received!
+    # Build artwork link
+    art_path = order.get('artworkPath') or ''
+    art_link = ''
+    if art_path:
+        if art_path.startswith('http'):
+            art_link = art_path
+        else:
+            art_link = request.host_url.rstrip('/') + art_path
 
-Order ID: {order['id']}
-Date: {order['createdAt']}
+    heads_text = chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(order.get('heads', [{}]))]) or '  1 head'
+    c = order.get('customer', {})
+
+    body = f"""
+MAXHEADS ORDER — {order['id']}
+{order.get('createdAt', '')}
 
 CUSTOMER
-Name: {order['customer'].get('name', '—')}
-Email: {order['customer'].get('email', '—')}
-Phone: {order['customer'].get('phone', '—')}
-Address: {order['customer'].get('address', '—')}
-Band: {order['customer'].get('band', '—')}
+Name:    {c.get('name', '—')}
+Email:   {c.get('email', '—')}
+Phone:   {c.get('phone', '—')}
+Address: {c.get('address', '—')}
+City:    {c.get('city', '—')}, {c.get('state', '—')} {c.get('zip', '—')}
+Band:    {c.get('band', '—')}
 
 ORDER
-Heads:
-{chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(order.get('heads', [{}]))]) or '  1 head'}
-Shipping: {order['shipping']}
-Total: ${order.get('total', '—')}
+{heads_text}
+Shipping: {order.get('shipping', '—')}
+Total:    ${order.get('total', '—')}
+Payment:  {order.get('paymentMethod', 'PayPal')}
 
-High-res proof PDF is attached.
+ARTWORK
+{art_link or 'No file — Grok design or text-only'}
 
-— MaxHeads Order System
+— MaxHeads
 """
 
     if smtp_user and smtp_pass:
