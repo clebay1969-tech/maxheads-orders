@@ -196,10 +196,8 @@ Address: {order['customer'].get('address', '—')}
 Band: {order['customer'].get('band', '—')}
 
 ORDER
-Size: {order.get('size', '—')}
-Port: {order.get('port', '—')}
-Grommet: {order.get('grommet', '—')}
-Design: {order.get('designType', '—')}
+Heads:
+{chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(order.get('heads', [{}]))]) or '  1 head'}
 Shipping: {order['shipping']}
 Total: ${order.get('total', '—')}
 
