@@ -1026,16 +1026,10 @@
 
     <div class="final-preview">
       <div class="final-drum" style="position:relative; background:url('hoop.png') center/contain no-repeat;">
-        <div class="art" id="finalArt" style="position:absolute; inset:12%; border-radius:50%; overflow:hidden; background:#111;">NIGHTLINE</div>
+        <div class="art" id="finalArt" style="position:absolute; width:80%; height:80%; top:10%; left:10%; cursor:grab; touch-action:none;">NIGHTLINE</div>
         <div id="previewPort" style="position:absolute;width:18%;aspect-ratio:1;border-radius:50%;background:#0a0a0a;border:3px solid #333;bottom:22%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;display:none;z-index:2;"></div>
       </div>
-      <div class="color-picker" style="display:flex; gap:8px; justify-content:center; margin:14px 0;">
-        <button onclick="setBg('#111')" style="width:28px;height:28px;border-radius:50%;background:#111;border:2px solid #444;"></button>
-        <button onclick="setBg('#fff')" style="width:28px;height:28px;border-radius:50%;background:#fff;border:2px solid #444;"></button>
-        <button onclick="setBg('#e10600')" style="width:28px;height:28px;border-radius:50%;background:#e10600;border:2px solid #444;"></button>
-        <button onclick="setBg('#1a3a5c')" style="width:28px;height:28px;border-radius:50%;background:#1a3a5c;border:2px solid #444;"></button>
-        <button onclick="setBg('#2d2d2d')" style="width:28px;height:28px;border-radius:50%;background:#2d2d2d;border:2px solid #444;"></button>
-      </div>
+      
 
       <div class="tweak-row">
         <button class="tweak-btn" onclick="adjustScale(-0.1)">−</button>
@@ -1627,6 +1621,27 @@
       const art = document.getElementById('finalArt');
       if (art) art.style.background = color;
     }
+
+    (function() {
+      const art = document.getElementById('finalArt');
+      if (!art) return;
+      let dragging = false, startX, startY, origX, origY;
+      art.addEventListener('pointerdown', e => {
+        dragging = true;
+        startX = e.clientX; startY = e.clientY;
+        origX = parseFloat(art.style.left) || 10;
+        origY = parseFloat(art.style.top) || 10;
+        art.setPointerCapture(e.pointerId);
+      });
+      art.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const dx = (e.clientX - startX) / art.parentElement.offsetWidth * 100;
+        const dy = (e.clientY - startY) / art.parentElement.offsetHeight * 100;
+        art.style.left = (origX + dx) + '%';
+        art.style.top = (origY + dy) + '%';
+      });
+      art.addEventListener('pointerup', () => dragging = false);
+    })();
 </script>
 </body>
 </html>
