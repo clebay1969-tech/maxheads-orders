@@ -767,12 +767,18 @@
     }
 
     .mini-preview {
-      width: 64px;
-      height: 64px;
+      width: 70px;
+      height: 70px;
       border-radius: 50%;
-      background: linear-gradient(145deg, #c41e3a, #8b0000);
-      border: 3px solid #333;
+      background: #222;
+      border: 2px solid #444;
       margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .mini-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     /* ========== SCREEN 9: CONFIRM ========== */
@@ -1022,9 +1028,16 @@
     <p style="text-align:center; font-size:13px; color:#aaa; margin:-8px 0 18px; letter-spacing:0.3px;">(we’re gonna send a final proof)</p>
 
     <div class="final-preview">
-      <div class="final-drum">
-        <div class="art" id="finalArt">NIGHTLINE</div>
-        <div id="previewPort" style="position:absolute;width:18%;aspect-ratio:1;border-radius:50%;background:#0a0a0a;border:3px solid #333;bottom:11%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;display:none;"></div>
+      <div class="final-drum" style="position:relative; background:url('hoop.png') center/contain no-repeat;">
+        <div class="art" id="finalArt" style="position:absolute; inset:12%; border-radius:50%; overflow:hidden; background:#111;">NIGHTLINE</div>
+        <div id="previewPort" style="position:absolute;width:18%;aspect-ratio:1;border-radius:50%;background:#0a0a0a;border:3px solid #333;bottom:22%;left:50%;transform:translate(-50%,0);cursor:grab;touch-action:none;display:none;z-index:2;"></div>
+      </div>
+      <div class="color-picker" style="display:flex; gap:8px; justify-content:center; margin:14px 0;">
+        <button onclick="setBg('#111')" style="width:28px;height:28px;border-radius:50%;background:#111;border:2px solid #444;"></button>
+        <button onclick="setBg('#fff')" style="width:28px;height:28px;border-radius:50%;background:#fff;border:2px solid #444;"></button>
+        <button onclick="setBg('#e10600')" style="width:28px;height:28px;border-radius:50%;background:#e10600;border:2px solid #444;"></button>
+        <button onclick="setBg('#1a3a5c')" style="width:28px;height:28px;border-radius:50%;background:#1a3a5c;border:2px solid #444;"></button>
+        <button onclick="setBg('#2d2d2d')" style="width:28px;height:28px;border-radius:50%;background:#2d2d2d;border:2px solid #444;"></button>
       </div>
 
       <div class="tweak-row">
@@ -1139,7 +1152,7 @@
       document.getElementById(id).classList.add('active');
       window.scrollTo(0, 0);
       if (id === 'preview') { updatePreview(); updatePreviewPort(); }
-      if (id === 'review') { renderHeadsSummary(); updateTotal(); }
+      if (id === 'review') { renderHeadsSummary(); updateTotal(); fillReviewPreview(); }
     }
 
     function updatePreview() {
@@ -1599,6 +1612,23 @@
       const total = headTotal + ship;
       document.getElementById('order-total').textContent = '$' + total;
       document.getElementById('payBtn').textContent = 'PAY $' + total + ' →';
+    }
+
+    function fillReviewPreview() {
+      const mini = document.querySelector('.mini-preview');
+      if (!mini) return;
+      const src = window.grokImageUrl || window.uploadedFile?.path;
+      if (src) {
+        mini.innerHTML = `<img src="${src}" alt="Design" />`;
+      } else {
+        mini.innerHTML = '';
+        mini.style.background = '#333';
+      }
+    }
+
+    function setBg(color) {
+      const art = document.getElementById('finalArt');
+      if (art) art.style.background = color;
     }
 </script>
 </body>
