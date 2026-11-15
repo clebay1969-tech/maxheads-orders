@@ -68,7 +68,7 @@ def design():
                 ],
                 'max_tokens': 200
             },
-            timeout=30
+            timeout=15
         )
         chat_res.raise_for_status()
         reply = chat_res.json()['choices'][0]['message']['content']
@@ -94,7 +94,7 @@ def design():
                         'prompt': edit_prompt,
                         'image': {'url': base_image, 'type': 'image_url'}
                     },
-                    timeout=60
+                    timeout=25
                 )
             else:
                 # New design — minimal style guidance, no long instructions
@@ -103,7 +103,7 @@ def design():
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                     json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1},
-                    timeout=60
+                    timeout=25
                 )
             if img_res.ok:
                 img_data = img_res.json()
@@ -115,7 +115,7 @@ def design():
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                     json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head design incorporating a logo, {prompt}', 'n': 1},
-                    timeout=60
+                    timeout=25
                 )
                 if img_res2.ok:
                     image_url = img_res2.json().get('data', [{}])[0].get('url')
