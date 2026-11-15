@@ -79,8 +79,8 @@ def design():
         try:
             base_image = previous_image
             if not base_image and logo_path:
-                # Convert local logo path to full URL for editing
-                base_image = request.host_url.rstrip('/') + logo_path
+                # Use the public Railway URL so xAI can fetch it
+                base_image = 'https://maxheads-orders-production.up.railway.app' + logo_path
             if base_image:
                 # Edit the existing image — keep prompt short so it doesn't render as text
                 edit_prompt = f'Edit the design: {prompt}. Do not add any text or words unless asked.'
