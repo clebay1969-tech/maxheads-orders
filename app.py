@@ -108,6 +108,17 @@ def design():
             if img_res.ok:
                 img_data = img_res.json()
                 image_url = img_data.get('data', [{}])[0].get('url')
+            else:
+                print(f'Image API error: {img_res.status_code} {img_res.text[:200]}')
+                # Fallback: generate new image
+                img_res2 = requests.post(
+                    'https://api.x.ai/v1/images/generations',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head design incorporating a logo, {prompt}', 'n': 1},
+                    timeout=60
+                )
+                if img_res2.ok:
+                    image_url = img_res2.json().get('data', [{}])[0].get('url')
         except Exception as e:
             print(f'Image gen failed: {e}')
 
