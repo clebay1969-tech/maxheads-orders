@@ -1468,11 +1468,15 @@
       grokMsg.textContent = 'Working on it...';
       msgs.appendChild(grokMsg);
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
         const res = await fetch('/api/design', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path, previousImageUrl: window.grokImageUrl || '' })
+          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path, previousImageUrl: window.grokImageUrl || '' }),
+          signal: controller.signal
         });
+        clearTimeout(timeout);
         const data = await res.json();
         grokMsg.textContent = data.reply || 'Here is a direction.';
         if (data.reply) window.lastDesign = data.reply;
@@ -1480,6 +1484,9 @@
           window.grokImageUrl = data.imageUrl;
           document.getElementById('logoContinue').style.opacity = '1';
           document.getElementById('logoContinue').style.pointerEvents = 'auto';
+          grokMsg.innerHTML += `<br><img src="${data.imageUrl}" style="max-width:100%;border-radius:8px;margin-top:8px;" />`;
+        } else {
+          grokMsg.textContent += ' (No image returned — try again or use Design with Grok)';
         }
       } catch (e) {
         grokMsg.textContent = 'Hit a snag. Try again.';
