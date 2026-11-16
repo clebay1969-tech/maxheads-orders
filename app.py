@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 MaxHeads Order App - Python Backend
@@ -81,11 +80,9 @@ def design():
             if not base_image and logo_path:
                 # Use the public Railway URL so xAI can fetch it
                 base_image = 'https://maxheads-orders-production.up.railway.app' + logo_path
-            if base_image:
-                # Edit the existing image — keep prompt short so it doesn't render as text
+            if base_image and not logo_path:
+                # Edit the existing image
                 edit_prompt = f'Edit the design: {prompt}. Do not add any text or words unless asked.'
-                if logo_path and not previous_image:
-                    edit_prompt = f'Add to this logo: {prompt}'
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/edits',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
@@ -94,6 +91,14 @@ def design():
                         'prompt': edit_prompt,
                         'image': {'url': base_image, 'type': 'image_url'}
                     },
+                    timeout=25
+                )
+            elif logo_path:
+                # Logo uploaded — generate new incorporating the request
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/generations',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head graphic design, bold, incorporating: {prompt}', 'n': 1},
                     timeout=25
                 )
             else:
