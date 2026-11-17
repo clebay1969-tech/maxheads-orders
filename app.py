@@ -95,12 +95,17 @@ def design():
                     timeout=25
                 )
             elif logo_path:
-                # Logo uploaded — generate design based on the request, do not render the words
+                # Edit the uploaded logo
+                logo_url = 'https://maxheads-orders-production.up.railway.app' + logo_path
                 img_res = requests.post(
-                    'https://api.x.ai/v1/images/generations',
+                    'https://api.x.ai/v1/images/edits',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={'model': 'grok-imagine-image', 'prompt': f'Graphic design for a circular kick drum head. Create visual artwork inspired by this request: {prompt}. Do not include any text or words from the request. Bold, high-contrast, centered.', 'n': 1},
-                    timeout=25
+                    json={
+                        'model': 'grok-imagine-image',
+                        'prompt': f'Modify this logo for a drum head: {prompt}. Keep the logo recognizable. No text.',
+                        'image': {'url': logo_url, 'type': 'image_url'}
+                    },
+                    timeout=30
                 )
             else:
                 # New design — minimal style guidance, no long instructions
@@ -233,6 +238,8 @@ Payment:  {order.get('paymentMethod', 'PayPal')}
 
 ARTWORK
 {art_link or 'No file — Grok design or text-only'}
+PROOF LOGO
+{order.get('proofLogo') or 'None'}
 
 — MaxHeads
 """
