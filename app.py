@@ -95,11 +95,11 @@ def design():
                     timeout=25
                 )
             elif logo_path:
-                # Logo uploaded — generate new incorporating the request
+                # Logo uploaded — generate design based on the request, do not render the words
                 img_res = requests.post(
                     'https://api.x.ai/v1/images/generations',
                     headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head graphic design, bold, incorporating: {prompt}', 'n': 1},
+                    json={'model': 'grok-imagine-image', 'prompt': f'Graphic design for a circular kick drum head. Create visual artwork inspired by this request: {prompt}. Do not include any text or words from the request. Bold, high-contrast, centered.', 'n': 1},
                     timeout=25
                 )
             else:
