@@ -912,7 +912,7 @@
         <h3>UPLOAD YOUR ART</h3>
         <p>Already have a logo or design? Drop the file and we’ll put it on the head.</p>
       </div>
-      <div class="path-card" onclick="go('logo-plus-grok')">
+      <div class="path-card" onclick="go('grok')">
         <h3>LOGO + GROK</h3>
         <p>Upload your logo, then tell Grok what to add around it.</p>
         <span class="badge">HYBRID</span>
@@ -1041,6 +1041,9 @@
 
     <div class="bottom-bar">
       <button class="btn btn-primary" onclick="go('info')">THIS IS THE ONE →</button>
+      <button class="btn" onclick="document.getElementById('logoUpload').click()" style="margin-top:10px;background:#222;border:1px solid #555;">ADD MY LOGO — SEND ME A PROOF</button>
+      <input type="file" id="logoUpload" accept="image/*" style="display:none;" onchange="uploadProofLogo(this)" />
+      <div id="proofLogoStatus" style="text-align:center;font-size:13px;color:#888;margin-top:8px;"></div>
     </div>
   </div>
 
@@ -1561,6 +1564,7 @@
         grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
         designType: window.uploadedFile ? 'upload' : 'grok',
         artworkPath: window.uploadedFile?.path || window.grokImageUrl || null,
+        proofLogo: window.proofLogo || null,
         customer,
         shipping: 'pickup',
         total: '115',
@@ -1655,6 +1659,23 @@
       });
       art.addEventListener('pointerup', () => dragging = false);
     })();
+
+    async function uploadProofLogo(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const status = document.getElementById('proofLogoStatus');
+      status.textContent = 'Uploading...';
+      const form = new FormData();
+      form.append('artwork', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.path) {
+        window.proofLogo = data.path;
+        status.textContent = 'Logo attached — we\'ll include it with your proof.';
+      } else {
+        status.textContent = 'Upload failed. Try again.';
+      }
+    }
 </script>
 </body>
 </html>
