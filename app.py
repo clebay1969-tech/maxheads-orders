@@ -310,6 +310,7 @@ def create_order():
         'grommet': data.get('grommet'),
         'designType': data.get('designType'),
         'artworkPath': data.get('artworkPath'),
+        'proofLogo': data.get('proofLogo'),
         'customer': data.get('customer', {}),
         'shipping': 'Store Pickup' if data.get('pickup') else 'Ground Shipping',
         'pickup': bool(data.get('pickup')),
