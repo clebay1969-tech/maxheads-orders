@@ -986,7 +986,7 @@
 
     <div style="margin-top:14px;">
       <button class="btn btn-primary" onclick="go('preview')" id="useDesignBtn" style="opacity:0.4; pointer-events:none;">USE THIS DESIGN →</button>
-      <button class="btn" id="removeNameBtn" onclick="removeBandName()" style="display:none;margin-top:8px;background:#222;border:1px solid #555;">REMOVE BAND NAME</button>
+      <button class="btn" id="removeNameBtn" onclick="document.getElementById('chatInput').value='Remove the band name, keep everything else the same'" style="display:none;margin-top:8px;background:#fff;color:#e10600;border:none;font-weight:600;">REMOVE BAND NAME</button>
     </div>
   </div>
 
@@ -1042,7 +1042,7 @@
 
     <div class="bottom-bar">
       <button class="btn btn-primary" onclick="go('info')">THIS IS THE ONE →</button>
-      <button class="btn" onclick="document.getElementById('logoUpload').click()" style="margin-top:10px;background:#222;border:1px solid #555;">DESIGN YOUR HEAD, UPLOAD YOUR LOGO — WE'LL SEND A PROOF</button>
+      <button class="btn" onclick="document.getElementById('logoUpload').click()" style="margin-top:10px;background:#fff;color:#e10600;border:none;font-weight:600;">DESIGN YOUR HEAD, UPLOAD YOUR LOGO — WE'LL SEND A PROOF</button>
       <input type="file" id="logoUpload" accept="image/*" style="display:none;" onchange="uploadProofLogo(this)" />
       <div id="proofLogoStatus" style="text-align:center;font-size:13px;color:#888;margin-top:8px;"></div>
     </div>
@@ -1127,7 +1127,7 @@
     <button class="btn" onclick="addAnotherHead()" style="margin-bottom:14px;background:transparent;border:1px solid #444;color:#aaa;">+ ADD ANOTHER HEAD</button>
     <div class="bottom-bar">
       <button class="btn btn-primary" id="payBtn" onclick="startCheckout()">PAY $140 →</button>
-      <button class="btn" id="cashBtn" onclick="payWithCash()" style="display:none; margin-top:10px; background:#333; border:2px solid #888; color:#fff; font-weight:600;">PAY WITH CASH AT PICKUP</button>
+      <button class="btn" id="cashBtn" onclick="payWithCash()" style="display:none; margin-top:10px; background:#fff; color:#e10600; border:none; font-weight:600;">PAY WITH CASH AT PICKUP</button>
       <p style="font-size:11px; color:#555; text-align:center; margin-top:12px;" id="payNote">Secured by PayPal</p>
     </div>
   </div>
