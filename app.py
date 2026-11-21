@@ -239,7 +239,7 @@ Payment:  {order.get('paymentMethod', 'PayPal')}
 ARTWORK
 {art_link or 'No file — Grok design or text-only'}
 PROOF LOGO
-{order.get('proofLogo') or 'None'}
+{('https://maxheads-orders-production.up.railway.app' + order.get('proofLogo')) if order.get('proofLogo') else 'None'}
 
 — MaxHeads
 """
