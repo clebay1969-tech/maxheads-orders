@@ -130,6 +130,16 @@ def design():
                 )
                 if img_res2.ok:
                     image_url = img_res2.json().get('data', [{}])[0].get('url')
+            # Save permanent copy
+            if image_url and image_url.startswith('http'):
+                try:
+                    img_resp = requests.get(image_url, timeout=15)
+                    if img_resp.ok:
+                        fname = f"{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}.png"
+                        (UPLOADS / fname).write_bytes(img_resp.content)
+                        image_url = f'/uploads/{fname}'
+                except Exception as e:
+                    print(f'Save failed: {e}')
         except Exception as e:
             print(f'Image gen failed: {e}')
 
