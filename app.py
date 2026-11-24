@@ -148,6 +148,16 @@ def design():
         print(f'Design error: {e}')
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/admin')
+def admin():
+    files = sorted(UPLOADS.glob('*.png'), key=lambda p: p.stat().st_mtime, reverse=True)[:20]
+    html = '<html><body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;"><h2>Recent Designs</h2>'
+    for f in files:
+        html += f'<div style="margin:10px 0;"><img src="/uploads/{f.name}" style="max-width:200px;border-radius:8px;" /><br><a href="/uploads/{f.name}" style="color:#e10600;">{f.name}</a></div>'
+    html += '</body></html>'
+    return html
+
 @app.route('/api/upload', methods=['POST'])
 def upload():
     if 'artwork' not in request.files:
