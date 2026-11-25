@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 MaxHeads Order App - Python Backend
@@ -8,6 +7,8 @@ import os
 import json
 import uuid
 import base64
+import io
+from threading import Lock
 from datetime import datetime
 from pathlib import Path
 
@@ -39,8 +40,106 @@ def health():
     return jsonify({
         'status': 'ok',
         'paypal': bool(os.getenv('PAYPAL_CLIENT_ID')),
-        'xai': bool(os.getenv('XAI_API_KEY'))
+        'xai': bool(os.getenv('XAI_API_KEY')),
+        'openai': bool(os.getenv('OPENAI_API_KEY'))
     })
+
+
+def artwork_url(path):
+    if path.startswith(('https://', 'http://')):
+        return path
+    return os.getenv('APP_BASE_URL', 'https://maxheads-orders-production.up.railway.app').rstrip('/') + '/' + path.lstrip('/')
+
+
+def save_design(result):
+    # Decode and validate actual image bytes before publishing a local PNG.
+    from PIL import Image
+    if not isinstance(result, str) or not result:
+        raise ValueError('No image returned')
+    if result.startswith(('https://', 'http://')):
+        response = requests.get(result, timeout=30)
+        response.raise_for_status()
+        raw = response.content
+    else:
+        raw = base64.b64decode(result, validate=True)
+    with Image.open(io.BytesIO(raw)) as image:
+        image.verify()
+    with Image.open(io.BytesIO(raw)) as image:
+        image.load()
+        fname = f"{datetime.now():%Y%m%d%H%M%S}-{uuid.uuid4().hex[:8]}.png"
+        temp = UPLOADS / (fname + '.tmp')
+        try:
+            image.convert('RGBA').save(temp, format='PNG')
+            temp.replace(UPLOADS / fname)
+        finally:
+            temp.unlink(missing_ok=True)
+    return f'/uploads/{fname}'
+
+
+OPENAI_DESIGN_INSTRUCTIONS = "You are the senior graphic designer for MaxHeads, creating original custom bass drumhead artwork for musicians, churches, organizations and brands.\n\nCREATIVE DIRECTION\nFollow the customer's brief above all stylistic defaults. Develop a coherent visual concept, strong focal point, intentional color palette and professional typography. Avoid generic clip-art compositions and unnecessary visual clutter.\nAdapt to the requested genre: classic and modern rock (bold, energetic, vintage or contemporary); metal (dramatic, intricate or aggressive); country and southern rock (Americana, western or rustic); blues and jazz (expressive, sophisticated); funk and soul (rhythmic, vibrant, retro); psychedelic and progressive (surreal, intricate, imaginative); punk and alternative (raw, independent); Christian rock (powerful, uplifting, contemporary rock); church and worship (welcoming, meaningful, elegant); corporate and custom branding (clean, consistent, professional). These are optional starting points, not mandatory motifs. Do not assume religious symbols, skulls, flames or other imagery unless appropriate to the brief.\n\nPRINT COMPOSITION\nCreate flat, front-facing artwork on a square canvas for a circular bass drumhead. Extend the background to all canvas edges. Keep essential lettering and imagery inside the central circular area with generous clearance from its edge. Prioritize legibility from a stage distance, strong contrast, clean edges and details that survive printing. Avoid tiny lettering and excessively fine detail. Do not draw a drum, rim, hardware, port hole, mockup, stage, watermark or manufacturer logo unless explicitly requested as artwork content. The application handles physical drumhead features separately.\n\nTEXT AND BRAND IDENTITY\nInclude only requested text. Reproduce requested spelling, capitalization and punctuation exactly. Do not invent a band name, slogan or extra words. Make requested band names prominent unless the customer directs otherwise. When given a logo, preserve its recognizable shapes, proportions, typography, spelling and colors unless explicitly asked to change them. Build complementary artwork around it; do not unnecessarily redraw it. Exact logo fidelity must be checked in the production proof.\n\nREVISIONS\nWhen an existing image is supplied, treat it as the current design. Make the requested changes while preserving all other approved elements as closely as possible. Do not restart the concept unless requested. If asked to remove text, remove only the specified text and reconstruct the underlying background consistently.\n\nOUTPUT\nGenerate the artwork itself, not a description of it. Aim for polished, original commercial artwork that a musician would proudly display onstage. Do not claim a specific print resolution, exact logo fidelity or production approval merely because an image was generated. Final print suitability requires human proofing."
+
+
+def design_openai(data):
+    """OpenAI image generation via Responses API."""
+    prompt = data.get('prompt', '')
+    previous_image = data.get('previousImageUrl')
+    logo_path = data.get('logoPath')
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'OpenAI API key not configured'}), 500
+    try:
+        # Build messages for Responses API
+        messages = [{'role': 'system', 'content': OPENAI_DESIGN_INSTRUCTIONS}]
+        user_content = [{'type': 'input_text', 'text': prompt}]
+        if previous_image:
+            img_url = artwork_url(previous_image)
+            user_content.append({'type': 'input_image', 'image_url': img_url})
+        elif logo_path:
+            logo_url = artwork_url(logo_path)
+            user_content.append({'type': 'input_image', 'image_url': logo_url})
+        messages.append({'role': 'user', 'content': user_content})
+        res = requests.post(
+            'https://api.openai.com/v1/responses',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={'model': 'gpt-4.1', 'input': messages, 'tools': [{'type': 'image_generation'}]},
+            timeout=180
+        )
+        if not res.ok:
+            return jsonify({'error': f'OpenAI error: {res.status_code}', 'detail': res.text[:300]}), 500
+        result = res.json()
+        # Extract image from response
+        image_url = None
+        for item in result.get('output', []):
+            if item.get('type') == 'image_generation_call':
+                image_url = item.get('result')  # may be base64 or url
+                break
+        return jsonify({'reply': 'OpenAI design ready.', 'imageUrl': save_design(image_url), 'engine': 'openai'})
+    except Exception:
+        app.logger.exception('OpenAI design failed')
+        return jsonify({'error': 'OpenAI could not generate or save the artwork. Please try again.'}), 502
+
+
+
+# Request limits are process-local, reset on restart, and are not a spending guarantee.
+generation_counts = {}
+MAX_GENERATIONS_PER_SESSION = 20
+GLOBAL_DAILY_LIMIT = int(os.getenv('GLOBAL_DAILY_LIMIT', '100'))
+daily_count = {'date': '', 'count': 0}
+limit_lock = Lock()
+
+
+def reserve_generation(session_id):
+    with limit_lock:
+        today = datetime.now().strftime('%Y-%m-%d')
+        if daily_count['date'] != today:
+            daily_count.update(date=today, count=0)
+        if generation_counts.get(session_id, 0) >= MAX_GENERATIONS_PER_SESSION:
+            return 'Generation limit reached. Contact MaxHeads.'
+        if daily_count['count'] >= GLOBAL_DAILY_LIMIT:
+            return 'Daily generation limit reached.'
+        generation_counts[session_id] = generation_counts.get(session_id, 0) + 1
+        daily_count['count'] += 1
+        return None
 
 @app.route('/api/design', methods=['POST'])
 def design():
@@ -50,7 +149,15 @@ def design():
     previous = data.get('previousDesign', '')
     if not prompt:
         return jsonify({'error': 'Prompt required'}), 400
-
+    engine = data.get('engine', 'grok')
+    if engine not in ('grok', 'openai'):
+        return jsonify({'error': 'Unknown design engine'}), 400
+    session_id = request.headers.get('X-Session-Id', request.remote_addr or 'default')
+    error = reserve_generation(session_id)
+    if error:
+        return jsonify({'error': error}), 429
+    if engine == 'openai':
+        return design_openai(data)
     api_key = os.getenv('XAI_API_KEY')
     if not api_key:
         return jsonify({'error': 'XAI API key not configured'}), 500
@@ -73,80 +180,30 @@ def design():
         chat_res.raise_for_status()
         reply = chat_res.json()['choices'][0]['message']['content']
 
-        # Image generation or editing
-        image_url = None
+        # Always edit the latest artwork first; never substitute a fresh image on failure.
         previous_image = data.get('previousImageUrl')
-        try:
-            base_image = previous_image
-            if not base_image and logo_path:
-                # Use the public Railway URL so xAI can fetch it
-                base_image = 'https://maxheads-orders-production.up.railway.app' + logo_path
-            if base_image and not logo_path:
-                # Edit the existing image
-                edit_prompt = f'Edit the design: {prompt}. Do not add any text or words unless asked.'
-                img_res = requests.post(
-                    'https://api.x.ai/v1/images/edits',
-                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={
-                        'model': 'grok-imagine-image',
-                        'prompt': edit_prompt,
-                        'image': {'url': base_image, 'type': 'image_url'}
-                    },
-                    timeout=25
-                )
-            elif logo_path:
-                # Edit the uploaded logo
-                logo_url = 'https://maxheads-orders-production.up.railway.app' + logo_path
-                img_res = requests.post(
-                    'https://api.x.ai/v1/images/edits',
-                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={
-                        'model': 'grok-imagine-image',
-                        'prompt': f'Modify this logo for a drum head: {prompt}. Keep the logo recognizable. No text.',
-                        'image': {'url': logo_url, 'type': 'image_url'}
-                    },
-                    timeout=30
-                )
-            else:
-                # New design — minimal style guidance, no long instructions
-                img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. If a band name or text is mentioned, include it in a bold, stylized font that fits the design. High contrast, centered, print-ready.'
-                img_res = requests.post(
-                    'https://api.x.ai/v1/images/generations',
-                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1},
-                    timeout=25
-                )
-            if img_res.ok:
-                img_data = img_res.json()
-                image_url = img_data.get('data', [{}])[0].get('url')
-            else:
-                print(f'Image API error: {img_res.status_code} {img_res.text[:200]}')
-                # Fallback: generate new image
-                img_res2 = requests.post(
-                    'https://api.x.ai/v1/images/generations',
-                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                    json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head design incorporating a logo, {prompt}', 'n': 1},
-                    timeout=25
-                )
-                if img_res2.ok:
-                    image_url = img_res2.json().get('data', [{}])[0].get('url')
-            # Save permanent copy
-            if image_url and image_url.startswith('http'):
-                try:
-                    img_resp = requests.get(image_url, timeout=15)
-                    if img_resp.ok:
-                        fname = f"{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}.png"
-                        (UPLOADS / fname).write_bytes(img_resp.content)
-                        image_url = f'/uploads/{fname}'
-                except Exception as e:
-                    print(f'Save failed: {e}')
-        except Exception as e:
-            print(f'Image gen failed: {e}')
-
-        return jsonify({'reply': reply, 'imageUrl': image_url})
-    except Exception as e:
-        print(f'Design error: {e}')
-        return jsonify({'error': str(e)}), 500
+        base_image = previous_image or logo_path
+        if base_image:
+            edit_prompt = (f'Edit the design: {prompt}. Do not add any text or words unless asked.'
+                           if previous_image else f'Modify this logo for a drum head: {prompt}. Keep the logo recognizable. No text.')
+            img_res = requests.post(
+                'https://api.x.ai/v1/images/edits',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={'model': 'grok-imagine-image', 'prompt': edit_prompt,
+                      'image': {'url': artwork_url(base_image), 'type': 'image_url'}}, timeout=60)
+        else:
+            img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. If a band name or text is mentioned, include it in a bold, stylized font that fits the design. High contrast, centered, print-ready.'
+            img_res = requests.post(
+                'https://api.x.ai/v1/images/generations',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1}, timeout=60)
+        img_res.raise_for_status()
+        result = img_res.json()['data'][0]
+        image_url = save_design(result.get('url') or result.get('b64_json'))
+        return jsonify({'reply': reply, 'imageUrl': image_url, 'engine': 'grok'})
+    except Exception:
+        app.logger.exception('Grok design failed')
+        return jsonify({'error': 'Grok could not generate or save the artwork. Please try again.'}), 502
 
 
 @app.route('/admin')
@@ -255,11 +312,12 @@ ORDER
 Shipping: {order.get('shipping', '—')}
 Total:    ${order.get('total', '—')}
 Payment:  {order.get('paymentMethod', 'PayPal')}
+Engine:   {order.get('engine', 'grok')}
 
 ARTWORK
 {art_link or 'No file — Grok design or text-only'}
 PROOF LOGO
-{('https://maxheads-orders-production.up.railway.app' + order.get('proofLogo')) if order.get('proofLogo') else 'None'}
+{(os.getenv('APP_BASE_URL', 'https://maxheads-orders-production.up.railway.app') + order.get('proofLogo')) if order.get('proofLogo') else 'None'}
 
 — MaxHeads
 """
@@ -330,6 +388,7 @@ def create_order():
         'grommet': data.get('grommet'),
         'designType': data.get('designType'),
         'artworkPath': data.get('artworkPath'),
+        'engine': data.get('engine', 'grok'),
         'proofLogo': data.get('proofLogo'),
         'customer': data.get('customer', {}),
         'shipping': 'Store Pickup' if data.get('pickup') else 'Ground Shipping',
