@@ -8,6 +8,8 @@ import json
 import uuid
 import base64
 import io
+import hmac
+import mimetypes
 from threading import Lock
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +26,26 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='public', static_url_path='')
 CORS(app)
+
+# Private test access: fail closed in the dedicated Railway test environment.
+def private_test_mode():
+    return (os.getenv('RAILWAY_ENVIRONMENT_NAME') == 'maxheads-r8-test'
+            or bool(os.getenv('TEST_PASSWORD')))
+
+@app.before_request
+def protect_test_app():
+    if not private_test_mode():
+        return None
+    password = os.getenv('TEST_PASSWORD', '')
+    if not password:
+        return 'Test access is not configured.', 503
+    auth = request.authorization
+    if (auth and auth.type == 'basic' and auth.username == 'maxheads'
+            and hmac.compare_digest((auth.password or '').encode(), password.encode())):
+        return None
+    return ('Authentication required.', 401,
+            {'WWW-Authenticate': 'Basic realm="MaxHeads private test", charset="UTF-8"',
+             'Cache-Control': 'no-store'})
 
 UPLOADS = Path(__file__).parent / 'uploads'
 UPLOADS.mkdir(exist_ok=True)
@@ -46,6 +68,18 @@ def health():
 
 
 def artwork_url(path):
+    if private_test_mode():
+        # Send local artwork inline instead of exposing password-protected uploads.
+        from urllib.parse import urlsplit
+        relative = urlsplit(path).path
+        filename = Path(relative).name
+        if relative != '/uploads/' + filename or not filename:
+            raise ValueError('Expected local test artwork')
+        local = UPLOADS / filename
+        mime = mimetypes.guess_type(filename)[0]
+        if mime not in ('image/png', 'image/jpeg', 'image/webp'):
+            raise ValueError('Expected PNG, JPEG or WebP artwork')
+        return 'data:' + mime + ';base64,' + base64.b64encode(local.read_bytes()).decode('ascii')
     if path.startswith(('https://', 'http://')):
         return path
     return os.getenv('APP_BASE_URL', 'https://maxheads-orders-production.up.railway.app').rstrip('/') + '/' + path.lstrip('/')
