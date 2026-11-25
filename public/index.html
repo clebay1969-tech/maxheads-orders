@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -912,7 +911,7 @@
         <h3>UPLOAD YOUR ART</h3>
         <p>Already have a logo or design? Drop the file and we’ll put it on the head.</p>
       </div>
-      <div class="path-card" onclick="go('grok-design')">
+      <div class="path-card" onclick="go('logo-plus-grok')">
         <h3>LOGO + GROK</h3>
         <p>Upload your logo, then tell Grok what to add around it.</p>
         <span class="badge">HYBRID</span>
@@ -941,6 +940,10 @@
       <p style="color:var(--muted);font-size:13px;margin-top:8px;">Logo ready</p>
     </div>
     <div id="logo-chat" style="display:none;">
+      <div style="text-align:center;margin-bottom:8px;">
+        <label style="font-size:12px;color:#888;"><input type="radio" name="logoEngine" value="grok" checked /> Grok</label>
+        <label style="font-size:12px;color:#888;margin-left:12px;"><input type="radio" name="logoEngine" value="openai" /> OpenAI</label>
+      </div>
       <div id="logo-chat-msgs" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
       <div style="display:flex;gap:8px;">
         <input id="logoChatInput" placeholder="Add flames, make it darker..." style="flex:1;padding:12px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;" />
@@ -948,7 +951,7 @@
       </div>
     </div>
     <div class="bottom-bar">
-      <button class="btn btn-primary" id="logoContinue" onclick="go('preview')" style="opacity:0.4;pointer-events:none;">USE THIS DESIGN →</button>
+      <button class="btn btn-primary" id="logoContinue" disabled onclick="acceptDesign('logo')" style="opacity:0.4;pointer-events:none;">USE THIS DESIGN →</button>
     </div>
   </div>
 
@@ -978,6 +981,10 @@
         <button class="suggestion" onclick="suggest(this)">Make it look fucking cool</button>
       </div>
 
+      <div style="text-align:center;margin-bottom:8px;">
+        <label style="font-size:12px;color:#888;"><input type="radio" name="engine" value="grok" checked /> Grok</label>
+        <label style="font-size:12px;color:#888;margin-left:12px;"><input type="radio" name="engine" value="openai" /> OpenAI</label>
+      </div>
       <div class="chat-input-row">
         <input class="chat-input" id="chatInput" placeholder="Describe your design..." onkeydown="if(event.key==='Enter')sendChat()" />
         <button class="send-btn" onclick="sendChat()">↑</button>
@@ -985,8 +992,8 @@
     </div>
 
     <div style="margin-top:14px;">
-      <button class="btn btn-primary" onclick="go('preview')" id="useDesignBtn" style="opacity:0.4; pointer-events:none;">USE THIS DESIGN →</button>
-      <button class="btn" id="removeNameBtn" onclick="document.getElementById('chatInput').value='Remove the band name, keep everything else the same'" style="display:none;margin-top:8px;background:#fff;color:#e10600;border:none;font-weight:600;">REMOVE BAND NAME</button>
+      <button class="btn btn-primary" onclick="acceptDesign('main')" id="useDesignBtn" disabled style="opacity:0.4; pointer-events:none;">USE THIS DESIGN →</button>
+      <button class="btn" id="removeNameBtn" onclick="removeBandName()" style="display:none;margin-top:8px;background:#fff;color:#e10600;border:none;font-weight:600;">REMOVE BAND NAME</button>
     </div>
   </div>
 
@@ -1146,6 +1153,9 @@
   </div>
 
   <script>
+    window.sessionId = localStorage.getItem('mhSession') || ('s' + Date.now() + Math.random().toString(36).slice(2));
+    localStorage.setItem('mhSession', window.sessionId);
+
     function go(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
@@ -1191,51 +1201,88 @@
 
     let designReady = false;
     let chatHistory = [];
+    let designBusy = false;
+    let selectedEngine = 'grok';
+    const designs = {main: null, logo: null};
+    document.querySelectorAll('input[name="engine"], input[name="logoEngine"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        selectedEngine = radio.value;
+        document.querySelectorAll('input[name="engine"], input[name="logoEngine"]').forEach(r => r.checked = r.value === selectedEngine);
+      });
+    });
+    function refreshDesignButtons() {
+      for (const [mode, id] of [['main','useDesignBtn'], ['logo','logoContinue']]) {
+        const btn = document.getElementById(id);
+        const ready = !!designs[mode] && !designBusy;
+        btn.disabled = !ready;
+        btn.style.opacity = ready ? '1' : '0.4';
+        btn.style.pointerEvents = ready ? 'auto' : 'none';
+      }
+      designReady = !!designs.main && !designBusy;
+      document.getElementById('removeNameBtn').style.display = designs.main ? 'block' : 'none';
+    }
+    function acceptDesign(mode) {
+      if (designBusy || !designs[mode]) return;
+      window.grokImageUrl = designs[mode].url;
+      window.designEngine = designs[mode].engine;
+      window.uploadedFile = null;
+      go('preview');
+    }
+    async function requestDesign(mode, prompt, message) {
+      if (designBusy) return;
+      designBusy = true;
+      refreshDesignButtons();
+      const engine = selectedEngine;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 240000);
+      try {
+        const res = await fetch('/api/design', {
+          method: 'POST', headers: {'Content-Type':'application/json','X-Session-Id':window.sessionId || 'default'},
+          body: JSON.stringify({prompt, engine, previousImageUrl: designs[mode]?.url || '', ...(mode === 'logo' ? {logoPath: window.uploadedLogo.path} : {})}),
+          signal: controller.signal
+        });
+        const data = await res.json();
+        if (!res.ok || !data.imageUrl || data.engine !== engine) throw new Error(data.error || 'No valid artwork returned.');
+        if (!/^\/uploads\/[A-Za-z0-9-]+\.png$/.test(data.imageUrl)) throw new Error('Invalid artwork location.');
+        const img = new Image();
+        img.src = data.imageUrl;
+        await img.decode();
+        if (!img.naturalWidth) throw new Error('Artwork failed to load.');
+        designs[mode] = {url:data.imageUrl, engine:data.engine};
+        message.textContent = data.reply || 'Design ready.';
+        if (mode === 'main') {
+          const art = document.getElementById('grok-art');
+          Object.assign(art.style, {background:'none',width:'100%',height:'100%',left:'8%',top:'8%'});
+          img.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center;border-radius:50%;';
+          art.replaceChildren(img);
+        } else {
+          img.style.cssText = 'max-width:100%;border-radius:8px;margin-top:8px;';
+          message.appendChild(document.createElement('br'));
+          message.appendChild(img);
+        }
+      } catch (e) {
+        message.textContent = (e.name === 'AbortError' ? 'Design timed out.' : e.message || 'Design failed.') + (designs[mode] ? ' Previous artwork retained.' : ' Please try again.');
+      } finally {
+        clearTimeout(timer);
+        designBusy = false;
+        refreshDesignButtons();
+      }
+    }
+    function addDesignMessage(container, text, role) {
+      const msg = document.createElement('div');
+      msg.className = 'msg ' + role;
+      msg.textContent = text;
+      container.appendChild(msg);
+      return msg;
+    }
     async function sendChat() {
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
-      if (!text) return;
-
+      if (!text || designBusy) return;
       const chat = document.getElementById('chat');
-      const userMsg = document.createElement('div');
-      userMsg.className = 'msg user';
-      userMsg.textContent = text;
-      chat.appendChild(userMsg);
+      addDesignMessage(chat, text, 'user');
       input.value = '';
-      chat.scrollTop = chat.scrollHeight;
-
-      const grokMsg = document.createElement('div');
-      grokMsg.className = 'msg grok';
-      grokMsg.textContent = 'Cooking something heavy…';
-      chat.appendChild(grokMsg);
-      chat.scrollTop = chat.scrollHeight;
-
-      try {
-        const res = await fetch('/api/design', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, previousImageUrl: window.grokImageUrl || '' })
-        });
-        const data = await res.json();
-        grokMsg.textContent = data.reply || 'Here is a direction.';
-        chatHistory.push({ role: 'user', content: text });
-        chatHistory.push({ role: 'assistant', content: data.reply || '' });
-
-        if (data.reply) window.lastDesign = data.reply;
-        if (data.imageUrl) {
-          window.grokImageUrl = data.imageUrl;
-          const art = document.getElementById('grok-art');
-          art.style.background = 'none';
-          art.style.width = '100%';
-          art.style.height = '100%';
-          art.style.left='8%'; art.style.top='8%'; art.innerHTML = `<img src="${data.imageUrl}" style="width:100%;height:100%;object-fit:contain;object-position:center;border-radius:50%;" onerror="this.parentElement.innerHTML='Image failed to load'" />`;
-        }
-        document.getElementById('useDesignBtn').style.opacity = '1'; document.getElementById('removeNameBtn').style.display = 'block';
-        document.getElementById('useDesignBtn').style.pointerEvents = 'auto';
-        designReady = true;
-      } catch (e) {
-        grokMsg.textContent = 'Hit a snag. Try again or describe it differently.';
-      }
+      await requestDesign('main', text, addDesignMessage(chat, 'Cooking something heavy…', 'grok'));
       chat.scrollTop = chat.scrollHeight;
     }
 
@@ -1269,7 +1316,7 @@
       input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
-        const zone = document.querySelector('.upload-zone');
+        const zone = document.querySelector('#upload .upload-zone');
         const original = zone.innerHTML;
         zone.innerHTML = '<div style="padding:40px;color:var(--muted);">Uploading...</div>';
         const form = new FormData();
@@ -1279,6 +1326,8 @@
           const data = await res.json();
           if (data.filename) {
             window.uploadedFile = data;
+            window.grokImageUrl = null;
+            window.designEngine = null;
             zone.style.display = 'none';
             document.getElementById('upload-success').style.display = 'block';
             document.getElementById('filename').textContent = data.originalName;
@@ -1323,7 +1372,8 @@
         port: document.querySelector('.options-section:nth-of-type(1) .chip.selected')?.textContent || 'None',
         grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
         designType: window.uploadedFile ? 'Upload' : 'Grok',
-        artworkPath: window.uploadedFile?.path || null,
+        artworkPath: window.uploadedFile?.path || window.grokImageUrl || null,
+        engine: window.uploadedFile ? 'upload' : window.designEngine,
         customer,
         pickup,
         total
@@ -1333,7 +1383,7 @@
         // Create order
         const orderRes = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Session-Id': window.sessionId || 'default' },
           body: JSON.stringify(orderData)
         });
         const order = await orderRes.json();
@@ -1342,7 +1392,7 @@
         // Create PayPal order
         const ppRes = await fetch('/api/paypal/create-order', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Session-Id': window.sessionId || 'default' },
           body: JSON.stringify({ amount: total, orderId: order.orderId })
         });
         const pp = await ppRes.json();
@@ -1455,6 +1505,8 @@
         const data = await res.json();
         if (data.filename) {
           window.uploadedLogo = data;
+          designs.logo = null;
+          refreshDesignButtons();
           document.getElementById('logo-img').src = data.path;
           document.getElementById('logo-preview').style.display = 'block';
           document.querySelector('#logo-plus-grok .upload-zone').style.display = 'none';
@@ -1467,38 +1519,12 @@
     async function sendLogoChat() {
       const input = document.getElementById('logoChatInput');
       const text = input.value.trim();
-      if (!text || !window.uploadedLogo) return;
+      if (!text || !window.uploadedLogo || designBusy) return;
       const msgs = document.getElementById('logo-chat-msgs');
-      msgs.innerHTML += `<div class="msg user">${text}</div>`;
+      addDesignMessage(msgs, text, 'user');
       input.value = '';
-      const grokMsg = document.createElement('div');
-      grokMsg.className = 'msg grok';
-      grokMsg.textContent = 'Working on it...';
-      msgs.appendChild(grokMsg);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
-        const res = await fetch('/api/design', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text, logoPath: window.uploadedLogo.path, previousImageUrl: window.grokImageUrl || '' }),
-          signal: controller.signal
-        });
-        clearTimeout(timeout);
-        const data = await res.json();
-        grokMsg.textContent = data.reply || 'Here is a direction.';
-        if (data.reply) window.lastDesign = data.reply;
-        if (data.imageUrl) {
-          window.grokImageUrl = data.imageUrl;
-          document.getElementById('logoContinue').style.opacity = '1';
-          document.getElementById('logoContinue').style.pointerEvents = 'auto';
-          grokMsg.innerHTML += `<br><img src="${data.imageUrl}" style="max-width:100%;border-radius:8px;margin-top:8px;" />`;
-        } else {
-          grokMsg.textContent += ' (No image returned — try again or use Design with Grok)';
-        }
-      } catch (e) {
-        grokMsg.textContent = 'Hit a snag. Try again.';
-      }
+      await requestDesign('logo', text, addDesignMessage(msgs, 'Working on it...', 'grok'));
+      msgs.scrollTop = msgs.scrollHeight;
     }
 
     function validateInfo() {
@@ -1565,6 +1591,7 @@
         grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
         designType: window.uploadedFile ? 'upload' : 'grok',
         artworkPath: window.uploadedFile?.path || window.grokImageUrl || null,
+        engine: window.uploadedFile ? 'upload' : window.designEngine,
         proofLogo: window.proofLogo || null,
         customer,
         shipping: 'pickup',
@@ -1574,7 +1601,7 @@
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Session-Id': window.sessionId || 'default' },
           body: JSON.stringify(payload)
         });
         if (res.ok) go('confirm');
@@ -1679,28 +1706,8 @@
     }
 
     async function removeBandName() {
-      if (!window.grokImageUrl) return;
-      const chat = document.getElementById('chat');
-      const grokMsg = document.createElement('div');
-      grokMsg.className = 'msg grok';
-      grokMsg.textContent = 'Removing the name...';
-      chat.appendChild(grokMsg);
-      try {
-        const res = await fetch('/api/design', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: 'Remove all text and band names. Keep the artwork exactly the same.', previousImageUrl: window.grokImageUrl })
-        });
-        const data = await res.json();
-        grokMsg.textContent = data.reply || 'Name removed.';
-        if (data.imageUrl) {
-          window.grokImageUrl = data.imageUrl;
-          const art = document.getElementById('finalArt');
-          if (art) art.innerHTML = `<img src="${data.imageUrl}" style="width:100%;height:100%;object-fit:contain;" />`;
-        }
-      } catch (e) {
-        grokMsg.textContent = 'Could not remove name. Try again.';
-      }
+      if (!designs.main || designBusy) return;
+      await requestDesign('main', 'Remove all text and band names. Keep the artwork exactly the same.', addDesignMessage(document.getElementById('chat'), 'Removing the name...', 'grok'));
     }
 </script>
 </body>
