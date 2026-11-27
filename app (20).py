@@ -107,7 +107,8 @@ def save_design(result):
             temp.replace(UPLOADS / fname)
         finally:
             temp.unlink(missing_ok=True)
-    return f'/uploads/{fname}'
+        width, height = image.size
+        return f'/uploads/{fname}', width, height
 
 
 OPENAI_DESIGN_INSTRUCTIONS = "You are the senior graphic designer for MaxHeads, creating original custom bass drumhead artwork for musicians, churches, organizations and brands.\n\nCREATIVE DIRECTION\nFollow the customer's brief above all stylistic defaults. Develop a coherent visual concept, strong focal point, intentional color palette and professional typography. Avoid generic clip-art compositions and unnecessary visual clutter.\nAdapt to the requested genre: classic and modern rock (bold, energetic, vintage or contemporary); metal (dramatic, intricate or aggressive); country and southern rock (Americana, western or rustic); blues and jazz (expressive, sophisticated); funk and soul (rhythmic, vibrant, retro); psychedelic and progressive (surreal, intricate, imaginative); punk and alternative (raw, independent); Christian rock (powerful, uplifting, contemporary rock); church and worship (welcoming, meaningful, elegant); corporate and custom branding (clean, consistent, professional). These are optional starting points, not mandatory motifs. Do not assume religious symbols, skulls, flames or other imagery unless appropriate to the brief.\n\nPRINT COMPOSITION\nCreate flat, front-facing artwork on a square canvas for a circular bass drumhead. Extend the background to all canvas edges. Keep essential lettering and imagery inside the central circular area with generous clearance from its edge. Prioritize legibility from a stage distance, strong contrast, clean edges and details that survive printing. Avoid tiny lettering and excessively fine detail. Do not draw a drum, rim, hardware, port hole, mockup, stage, watermark or manufacturer logo unless explicitly requested as artwork content. The application handles physical drumhead features separately.\n\nTEXT AND BRAND IDENTITY\nInclude only requested text. Reproduce requested spelling, capitalization and punctuation exactly. Do not invent a band name, slogan or extra words. Make requested band names prominent unless the customer directs otherwise. When given a logo, preserve its recognizable shapes, proportions, typography, spelling and colors unless explicitly asked to change them. Build complementary artwork around it; do not unnecessarily redraw it. Exact logo fidelity must be checked in the production proof.\n\nREVISIONS\nWhen an existing image is supplied, treat it as the current design. Make the requested changes while preserving all other approved elements as closely as possible. Do not restart the concept unless requested. If asked to remove text, remove only the specified text and reconstruct the underlying background consistently.\n\nOUTPUT\nGenerate the artwork itself, not a description of it. Aim for polished, original commercial artwork that a musician would proudly display onstage. Do not claim a specific print resolution, exact logo fidelity or production approval merely because an image was generated. Final print suitability requires human proofing."
@@ -147,7 +148,8 @@ def design_openai(data):
             if item.get('type') == 'image_generation_call':
                 image_url = item.get('result')  # may be base64 or url
                 break
-        return jsonify({'reply': 'OpenAI design ready.', 'imageUrl': save_design(image_url), 'engine': 'openai'})
+        saved = save_design(image_url)
+        return jsonify({'reply': 'OpenAI design ready.', 'imageUrl': saved[0], 'width': saved[1], 'height': saved[2], 'engine': 'openai'})
     except Exception:
         app.logger.exception('OpenAI design failed')
         return jsonify({'error': 'OpenAI could not generate or save the artwork. Please try again.'}), 502
@@ -226,15 +228,15 @@ def design():
                 json={'model': 'grok-imagine-image', 'prompt': edit_prompt,
                       'image': {'url': artwork_url(base_image), 'type': 'image_url'}}, timeout=60)
         else:
-            img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. If a band name or text is mentioned, include it in a bold, stylized font that fits the design. High contrast, centered, print-ready.'
+            img_prompt = f'''Graphic design for a circular bass drumhead. Create flat artwork on a square canvas. Extend the background to all edges. Keep essential lettering and imagery inside the central circular area, approximately 10% of the diameter away from the edge. {prompt}. Bold, high-contrast, professional. No drum rim, hardware, port hole, or mockup. If a band name is mentioned, include it prominently.'''
             img_res = requests.post(
                 'https://api.x.ai/v1/images/generations',
                 headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
                 json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1}, timeout=60)
         img_res.raise_for_status()
         result = img_res.json()['data'][0]
-        image_url = save_design(result.get('url') or result.get('b64_json'))
-        return jsonify({'reply': reply, 'imageUrl': image_url, 'engine': 'grok'})
+        saved = save_design(result.get('url') or result.get('b64_json'))
+        return jsonify({'reply': reply, 'imageUrl': saved[0], 'width': saved[1], 'height': saved[2], 'engine': 'grok'})
     except Exception:
         app.logger.exception('Grok design failed')
         return jsonify({'error': 'Grok could not generate or save the artwork. Please try again.'}), 502
