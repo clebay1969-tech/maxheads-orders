@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -912,7 +913,7 @@
         <h3>UPLOAD YOUR ART</h3>
         <p>Already have a logo or design? Drop the file and we’ll put it on the head.</p>
       </div>
-      <div class="path-card" onclick="go('grok-design')">
+      <div class="path-card" onclick="go('logo-plus-grok')">
         <h3>LOGO + GROK</h3>
         <p>Upload your logo, then tell Grok what to add around it.</p>
         <span class="badge">HYBRID</span>
@@ -1224,6 +1225,7 @@
         if (data.reply) window.lastDesign = data.reply;
         if (data.imageUrl) {
           window.grokImageUrl = data.imageUrl;
+          window.uploadedFile = null;
           const art = document.getElementById('grok-art');
           art.style.background = 'none';
           art.style.width = '100%';
@@ -1279,6 +1281,7 @@
           const data = await res.json();
           if (data.filename) {
             window.uploadedFile = data;
+            window.grokImageUrl = null; window.uploadedLogo = null;
             zone.style.display = 'none';
             document.getElementById('upload-success').style.display = 'block';
             document.getElementById('filename').textContent = data.originalName;
@@ -1322,8 +1325,10 @@
         size: document.querySelector('.size-btn.selected')?.textContent || '20"',
         port: document.querySelector('.options-section:nth-of-type(1) .chip.selected')?.textContent || 'None',
         grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
-        designType: window.uploadedFile ? 'Upload' : 'Grok',
-        artworkPath: window.uploadedFile?.path || null,
+        designType: window.uploadedLogo ? 'Logo + Grok' : (window.uploadedFile ? 'Upload' : 'Grok'),
+        artworkPath: window.grokImageUrl || window.uploadedFile?.path || null,
+        originalLogo: window.uploadedLogo?.path || null,
+        proofLogo: window.proofLogo || null,
         customer,
         pickup,
         total
@@ -1455,6 +1460,7 @@
         const data = await res.json();
         if (data.filename) {
           window.uploadedLogo = data;
+          window.grokImageUrl = null; window.uploadedFile = null;
           document.getElementById('logo-img').src = data.path;
           document.getElementById('logo-preview').style.display = 'block';
           document.querySelector('#logo-plus-grok .upload-zone').style.display = 'none';
@@ -1490,6 +1496,7 @@
         if (data.reply) window.lastDesign = data.reply;
         if (data.imageUrl) {
           window.grokImageUrl = data.imageUrl;
+          window.uploadedFile = null;
           document.getElementById('logoContinue').style.opacity = '1';
           document.getElementById('logoContinue').style.pointerEvents = 'auto';
           grokMsg.innerHTML += `<br><img src="${data.imageUrl}" style="max-width:100%;border-radius:8px;margin-top:8px;" />`;
@@ -1563,8 +1570,9 @@
         size: current.size,
         port: current.port,
         grommet: document.querySelector('.options-section:nth-of-type(2) .chip.selected')?.textContent || 'None',
-        designType: window.uploadedFile ? 'upload' : 'grok',
-        artworkPath: window.uploadedFile?.path || window.grokImageUrl || null,
+        designType: window.uploadedLogo ? 'Logo + Grok' : (window.uploadedFile ? 'Upload' : 'Grok'),
+        artworkPath: window.grokImageUrl || window.uploadedFile?.path || null,
+        originalLogo: window.uploadedLogo?.path || null,
         proofLogo: window.proofLogo || null,
         customer,
         shipping: 'pickup',
@@ -1695,6 +1703,7 @@
         grokMsg.textContent = data.reply || 'Name removed.';
         if (data.imageUrl) {
           window.grokImageUrl = data.imageUrl;
+          window.uploadedFile = null;
           const art = document.getElementById('finalArt');
           if (art) art.innerHTML = `<img src="${data.imageUrl}" style="width:100%;height:100%;object-fit:contain;" />`;
         }
