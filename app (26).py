@@ -1,0 +1,476 @@
+
+#!/usr/bin/env python3
+"""
+MaxHeads Order App - Python Backend
+Handles: file uploads, Grok design, PayPal, order emails
+"""
+import os
+import json
+import uuid
+import base64
+from datetime import datetime
+from pathlib import Path
+
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+import requests
+from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+load_dotenv()
+
+app = Flask(__name__, static_folder='public', static_url_path='')
+CORS(app)
+
+UPLOADS = Path(__file__).parent / 'uploads'
+UPLOADS.mkdir(exist_ok=True)
+
+# In-memory orders
+orders = []
+
+@app.route('/')
+def index():
+    return send_from_directory('public', 'index.html')
+
+@app.route('/api/health')
+def health():
+    return jsonify({
+        'status': 'ok',
+        'paypal': bool(os.getenv('PAYPAL_CLIENT_ID')),
+        'xai': bool(os.getenv('XAI_API_KEY'))
+    })
+
+@app.route('/api/design', methods=['POST'])
+def design():
+    data = request.json or {}
+    prompt = data.get('prompt', '')
+    logo_path = data.get('logoPath')
+    previous = data.get('previousDesign', '')
+    if not prompt:
+        return jsonify({'error': 'Prompt required'}), 400
+
+    api_key = os.getenv('XAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'XAI API key not configured'}), 500
+
+    try:
+        # Chat completion for design direction
+        chat_res = requests.post(
+            'https://api.x.ai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'grok-4.3',
+                'messages': [
+                    {'role': 'system', 'content': 'You are a design assistant for MaxHeads custom kick drum heads. Suggest bold, high-contrast rock/metal artwork suitable for circular drumhead printing. Keep responses short.'},
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': 200
+            },
+            timeout=15
+        )
+        chat_res.raise_for_status()
+        reply = chat_res.json()['choices'][0]['message']['content']
+
+        # Image generation or editing
+        image_url = None
+        previous_image = data.get('previousImageUrl')
+        try:
+            base_image = previous_image
+            if base_image and base_image.startswith('/uploads/'):
+                base_image = (os.getenv('APP_BASE_URL') or request.host_url).rstrip('/') + base_image
+            if not base_image and logo_path:
+                # Use the public Railway URL so xAI can fetch it
+                base_image = (os.getenv('APP_BASE_URL') or request.host_url).rstrip('/') + logo_path
+            if base_image and not logo_path:
+                # Edit the existing image
+                edit_prompt = f'Edit the design: {prompt}. Do not add any text or words unless asked.'
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/edits',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'model': 'grok-imagine-image',
+                        'prompt': edit_prompt,
+                        'image': {'url': base_image, 'type': 'image_url'}
+                    },
+                    timeout=25
+                )
+            elif logo_path:
+                # Edit the uploaded logo
+                logo_url = (os.getenv('APP_BASE_URL') or request.host_url).rstrip('/') + logo_path
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/edits',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'model': 'grok-imagine-image',
+                        'prompt': f'Modify this logo for a drum head: {prompt}. Keep the logo recognizable. No text.',
+                        'image': {'url': logo_url, 'type': 'image_url'}
+                    },
+                    timeout=30
+                )
+            else:
+                # New design — minimal style guidance, no long instructions
+                img_prompt = f'Graphic design for a circular kick drum head. Create visual artwork based on this concept: {prompt}. If a band name or text is mentioned, include it in a bold, stylized font that fits the design. High contrast, centered, print-ready.'
+                img_res = requests.post(
+                    'https://api.x.ai/v1/images/generations',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'grok-imagine-image', 'prompt': img_prompt, 'n': 1},
+                    timeout=25
+                )
+            if img_res.ok:
+                img_data = img_res.json()
+                image_url = img_data.get('data', [{}])[0].get('url')
+            else:
+                print(f'Image API error: {img_res.status_code} {img_res.text[:200]}')
+                # Fallback: generate new image
+                img_res2 = requests.post(
+                    'https://api.x.ai/v1/images/generations',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={'model': 'grok-imagine-image', 'prompt': f'Circular drum head design incorporating a logo, {prompt}', 'n': 1},
+                    timeout=25
+                )
+                if img_res2.ok:
+                    image_url = img_res2.json().get('data', [{}])[0].get('url')
+            # Save permanent copy
+            if image_url and image_url.startswith('http'):
+                try:
+                    img_resp = requests.get(image_url, timeout=15)
+                    if img_resp.ok:
+                        fname = f"{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}.png"
+                        (UPLOADS / fname).write_bytes(img_resp.content)
+                        image_url = f'/uploads/{fname}'
+                except Exception as e:
+                    print(f'Save failed: {e}')
+        except Exception as e:
+            print(f'Image gen failed: {e}')
+
+        return jsonify({'reply': reply, 'imageUrl': image_url})
+    except Exception as e:
+        print(f'Design error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin')
+def admin():
+    files = sorted(UPLOADS.glob('*.png'), key=lambda p: p.stat().st_mtime, reverse=True)[:20]
+    html = '<html><body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;"><h2>Recent Designs</h2>'
+    for f in files:
+        html += f'<div style="margin:10px 0;"><img src="/uploads/{f.name}" style="max-width:200px;border-radius:8px;" /><br><a href="/uploads/{f.name}" style="color:#e10600;">{f.name}</a></div>'
+    html += '</body></html>'
+    return html
+
+@app.route('/api/upload', methods=['POST'])
+def upload():
+    if 'artwork' not in request.files:
+        return jsonify({'error': 'No file'}), 400
+    f = request.files['artwork']
+    if not f.filename:
+        return jsonify({'error': 'Empty filename'}), 400
+
+    ext = Path(f.filename).suffix.lower()
+    allowed = {'.jpg', '.jpeg', '.png', '.pdf', '.eps', '.ai', '.psd', '.webp'}
+    if ext not in allowed:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    filename = f'{datetime.now().strftime("%Y%m%d%H%M%S")}-{uuid.uuid4().hex[:8]}{ext}'
+    f.save(UPLOADS / filename)
+    return jsonify({'filename': filename, 'originalName': f.filename, 'path': f'/uploads/{filename}'})
+
+@app.route('/uploads/<path:filename>')
+def serve_upload(filename):
+    return send_from_directory(UPLOADS, filename)
+
+def generate_order_pdf(order):
+    """Generate a simple high-res PDF proof of the order."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+        import io
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
+        w, h = letter
+        c.setFont('Helvetica-Bold', 18)
+        c.drawString(1*inch, h - 1*inch, f"MaxHeads Order — {order['id']}")
+        c.setFont('Helvetica', 11)
+        y = h - 1.5*inch
+        lines = [
+            f"Size: {order.get('size', '—')}",
+            f"Port: {order.get('port', '—')}",
+            f"Grommet: {order.get('grommet', '—')}",
+            f"Design: {order.get('designType', '—')}",
+            f"Customer: {order['customer'].get('name', '—')}",
+            f"Email: {order['customer'].get('email', '—')}",
+            f"Total: ${order.get('total', '—')}",
+            "",
+            "Artwork proof attached or available via order system.",
+            "Final proof will be sent before printing."
+        ]
+        for line in lines:
+            c.drawString(1*inch, y, line)
+            y -= 16
+        c.save()
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        print(f'PDF gen failed: {e}')
+        return None
+
+def production_artwork(art_path):
+    """4x Lanczos resampling, capped at 6600 pixels on longest side."""
+    from PIL import Image, ImageOps
+    if not isinstance(art_path, str) or not art_path.startswith('/uploads/'):
+        raise ValueError('Artwork is not a locally saved file')
+    name = art_path[len('/uploads/'):]
+    if not name or Path(name).name != name:
+        raise ValueError('Invalid artwork path')
+    source = UPLOADS / name
+    with Image.open(source) as raw:
+        im = ImageOps.exif_transpose(raw)
+        w, h = im.size
+        if w*h > 40_000_000:
+            raise ValueError('Artwork exceeds processing limit')
+        factor = min(4, 6600 / max(w, h))
+        if factor <= 1:
+            return art_path, f'{w} x {h} px (original retained)'
+        size = (round(w*factor), round(h*factor))
+        profile = im.info.get('icc_profile')
+        im = im.convert('RGBA' if 'A' in im.getbands() or 'transparency' in im.info else 'RGB')
+        result = im.resize(size, Image.Resampling.LANCZOS)
+        filename = f'{uuid.uuid4().hex}-production.png'
+        opts = {'dpi': (size[0]/22, size[0]/22)}
+        if profile and raw.mode in ('RGB', 'RGBA'):
+            opts['icc_profile'] = profile
+        result.save(UPLOADS / filename, **opts)
+        return '/uploads/' + filename, f'{size[0]} x {size[1]} px; {size[0]/22:.1f} PPI across 22 inches (resampled)'
+
+
+def artwork_link(path):
+    if not path:
+        return 'None'
+    if path.startswith(('https://', 'http://')):
+        return path
+    return (os.getenv('APP_BASE_URL') or request.host_url).rstrip('/') + path
+
+
+def send_order_email(order):
+    """Send order notification with PDF attachment."""
+    to_email = os.getenv('ORDER_EMAIL', 'heads@maxheads.com')
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_pass = os.getenv('SMTP_PASS')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+
+    subject = f"New MaxHeads Order — {order['id']}"
+    # Build artwork link
+    art_path = order.get('artworkPath') or ''
+    art_link = ''
+    if art_path:
+        if art_path.startswith('http'):
+            art_link = art_path
+        else:
+            art_link = request.host_url.rstrip('/') + art_path
+
+    heads = order.get('heads') or [{}]
+    heads_text = chr(10).join([f"  Head {i+1}: {h.get('size','—')} / Port {h.get('port','—')}" for i, h in enumerate(heads)]) or '  1 head'
+    c = order.get('customer', {})
+
+    body = f"""
+MAXHEADS ORDER — {order['id']}
+{order.get('createdAt', '')}
+
+CUSTOMER
+Name:    {c.get('name', '—')}
+Email:   {c.get('email', '—')}
+Phone:   {c.get('phone', '—')}
+Address: {c.get('address', '—')}
+City:    {c.get('city', '—')}, {c.get('state', '—')} {c.get('zip', '—')}
+Band:    {c.get('band', '—')}
+Notes:   {c.get('notes', '—')}
+
+ORDER
+{heads_text}
+Shipping: {order.get('shipping', '—')}
+Total:    ${order.get('total', '—')}
+Payment:  {order.get('paymentMethod', 'PayPal')}
+
+ARTWORK
+{artwork_link(order.get('artworkPath'))}
+PRODUCTION ARTWORK (4x resampled, when available)
+{artwork_link(order.get('productionArtwork'))}
+{order.get('productionDetails', 'Not applicable')}
+ORIGINAL CUSTOMER LOGO
+{artwork_link(order.get('originalLogo'))}
+PROOF LOGO
+{artwork_link(order.get('proofLogo'))}
+
+— MaxHeads
+"""
+
+    resend_key = os.getenv('RESEND_API_KEY')
+    if not resend_key:
+        print('=== ORDER EMAIL (no Resend key) ===')
+        print(body)
+        return False
+
+    try:
+        # Shop email
+        requests.post(
+            'https://api.resend.com/emails',
+            headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'},
+            json={
+                'from': 'MaxHeads Orders <orders@maxheads.com>',
+                'to': [to_email],
+                'subject': subject,
+                'text': body
+            },
+            timeout=15
+        )
+        print(f'Email sent to {to_email}')
+
+        # Customer confirmation
+        cust_email = c.get('email')
+        if cust_email:
+            requests.post(
+                'https://api.resend.com/emails',
+                headers={'Authorization': f'Bearer {resend_key}', 'Content-Type': 'application/json'},
+                json={
+                    'from': 'MaxHeads <orders@maxheads.com>',
+                    'to': [cust_email],
+                    'subject': f"MaxHeads Order Received — {order['id']}",
+                    'text': f"""Hey {c.get('name', 'there')},
+
+We got your MaxHeads order.
+
+Order: {order['id']}
+{heads_text}
+Total: ${order.get('total', '—')}
+
+We'll send a proof before anything gets printed.
+Questions? Reply to this email or hit heads@maxheads.com.
+
+Rock on,
+MaxHeads"""
+                },
+                timeout=15
+            )
+            print(f'Confirmation sent to {cust_email}')
+
+        return True
+    except Exception as e:
+        print(f'Resend email failed: {e}')
+        return False
+    
+
+@app.route('/api/orders', methods=['POST'])
+def create_order():
+    data = request.json or {}
+    order = {
+        'id': f'MH-{datetime.now().strftime("%Y%m%d")}-{uuid.uuid4().hex[:6].upper()}',
+        'createdAt': datetime.now().isoformat(),
+        'size': data.get('size'),
+        'port': data.get('port'),
+        'grommet': data.get('grommet'),
+        'designType': data.get('designType'),
+        'artworkPath': data.get('artworkPath'),
+        'proofLogo': data.get('proofLogo'),
+        'originalLogo': data.get('originalLogo'),
+        'heads': data.get('heads'),
+        'paymentMethod': data.get('paymentMethod', 'PayPal'),
+        'customer': data.get('customer', {}),
+        'shipping': 'Store Pickup' if data.get('pickup') else 'Ground Shipping',
+        'pickup': bool(data.get('pickup')),
+        'total': data.get('total'),
+        'status': 'pending_payment'
+    }
+    if str(order.get('designType', '')).lower() in ('grok', 'logo + grok', 'ai', 'logo + ai'):
+        if not order.get('artworkPath'):
+            return jsonify({'error': 'Please approve generated artwork before ordering'}), 400
+        try:
+            order['productionArtwork'], order['productionDetails'] = production_artwork(order['artworkPath'])
+        except Exception as exc:
+            print(f'Production resampling failed: {exc}')
+            order['productionDetails'] = 'Resampling failed; use original artwork link and enlarge manually.'
+    orders.append(order)
+    print(f'=== NEW ORDER ===')
+    print(f'ID: {order["id"]}')
+    print(f'Customer: {order["customer"].get("name")} <{order["customer"].get("email")}>')
+    print(f'Size: {order["size"]} | Total: ${order["total"]}')
+    print(f'Shipping: {order["shipping"]}')
+    print(f'=================')
+    try:
+        send_order_email(order)
+    except Exception as e:
+        print(f'Email error (order still created): {e}')
+    return jsonify({'orderId': order['id'], 'order': order})
+
+@app.route('/api/paypal/create-order', methods=['POST'])
+def paypal_create():
+    data = request.json or {}
+    amount = data.get('amount', '115.00')
+    order_id = data.get('orderId', 'unknown')
+
+    client_id = os.getenv('PAYPAL_CLIENT_ID')
+    secret = os.getenv('PAYPAL_SECRET')
+    mode = os.getenv('PAYPAL_MODE', 'sandbox')
+    base = 'https://api-m.paypal.com' if mode == 'live' else 'https://api-m.sandbox.paypal.com'
+
+    try:
+        # Get access token
+        auth = requests.auth.HTTPBasicAuth(client_id, secret)
+        token_res = requests.post(f'{base}/v1/oauth2/token', auth=auth, data={'grant_type': 'client_credentials'})
+        token_res.raise_for_status()
+        token = token_res.json()['access_token']
+
+        # Create order
+        order_res = requests.post(
+            f'{base}/v2/checkout/orders',
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            json={
+                'intent': 'CAPTURE',
+                'purchase_units': [{
+                    'amount': {'currency_code': 'USD', 'value': str(amount)},
+                    'description': f'MaxHeads Custom Kick Head - {order_id}',
+                    'custom_id': order_id
+                }]
+            }
+        )
+        order_res.raise_for_status()
+        return jsonify({'paypalOrderId': order_res.json()['id']})
+    except Exception as e:
+        print(f'PayPal error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/paypal/capture', methods=['POST'])
+def paypal_capture():
+    data = request.json or {}
+    paypal_order_id = data.get('paypalOrderId')
+    if not paypal_order_id:
+        return jsonify({'error': 'Missing paypalOrderId'}), 400
+
+    client_id = os.getenv('PAYPAL_CLIENT_ID')
+    secret = os.getenv('PAYPAL_SECRET')
+    mode = os.getenv('PAYPAL_MODE', 'sandbox')
+    base = 'https://api-m.paypal.com' if mode == 'live' else 'https://api-m.sandbox.paypal.com'
+
+    try:
+        auth = requests.auth.HTTPBasicAuth(client_id, secret)
+        token_res = requests.post(f'{base}/v1/oauth2/token', auth=auth, data={'grant_type': 'client_credentials'})
+        token_res.raise_for_status()
+        token = token_res.json()['access_token']
+
+        capture_res = requests.post(
+            f'{base}/v2/checkout/orders/{paypal_order_id}/capture',
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+        )
+        capture_res.raise_for_status()
+        return jsonify({'status': capture_res.json().get('status'), 'details': capture_res.json()})
+    except Exception as e:
+        print(f'PayPal capture error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    print('MaxHeads Order App starting...')
+    print(f'PayPal mode: {os.getenv("PAYPAL_MODE", "sandbox")}')
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 3000)), debug=True)
